@@ -85,6 +85,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg-deep); color: va
 .facility-card.selected { border-color: var(--accent-blue); background: rgba(59,130,246,.08); box-shadow: 0 0 0 1px rgba(59,130,246,.2); }
 .facility-card.completed { border-left: 3px solid var(--complete-green); opacity: .7; }
 .facility-card.completed .fc-name { text-decoration: line-through; text-decoration-color: var(--text-muted); }
+.facility-card.in-progress { border-left: 3px solid var(--accent-amber); }
 
 .fc-top { display: flex; align-items: flex-start; gap: 10px; }
 .fc-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; border: 1.5px solid rgba(255,255,255,.2); }
@@ -94,8 +95,10 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg-deep); color: va
 .fc-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fc-company { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fc-city { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; margin-top: 1px; }
-.fc-check { position: absolute; top: 10px; right: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; }
-.facility-card.completed .fc-check { opacity: 1; }
+.fc-owner { font-size: 10px; color: var(--accent-amber); font-weight: 600; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc-badge { position: absolute; top: 10px; right: 10px; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 8px; text-transform: uppercase; letter-spacing: .3px; }
+.fc-badge.badge-done { background: rgba(5,150,105,.15); color: var(--accent-green); }
+.fc-badge.badge-progress { background: rgba(245,158,11,.12); color: var(--accent-amber); }
 
 /* DETAIL PANEL — inline mode, replaces list */
 .detail-panel { display: none; flex-direction: column; overflow-y: auto; flex: 1; }
@@ -255,6 +258,7 @@ textarea.dp-input { min-height: 48px; }
       <div class="status-toggle">
         <button class="st-btn active" data-sf="all" onclick="setStatusFilter('all',this)">All</button>
         <button class="st-btn" data-sf="open" onclick="setStatusFilter('open',this)">Open</button>
+        <button class="st-btn" data-sf="progress" onclick="setStatusFilter('progress',this)">In Progress</button>
         <button class="st-btn" data-sf="done" onclick="setStatusFilter('done',this)">Done</button>
       </div>
       <button class="btn-export" onclick="exportExcel()">📥 Export</button>
@@ -746,31 +750,38 @@ function renderList() {
     // Type chip filter
     if (!isTypeVisible(f)) return false;
     // Status filter
+    var st = actionState[f.id] || {};
+    var hasOwner = !!(st.owner && st.owner.trim());
     if (statusFilter === 'open') {
-      var st = actionState[f.id];
-      if (st && st.completed) return false;
+      if (st.completed || hasOwner) return false;
+    } else if (statusFilter === 'progress') {
+      if (st.completed || !hasOwner) return false;
     } else if (statusFilter === 'done') {
-      var st2 = actionState[f.id];
-      if (!st2 || !st2.completed) return false;
+      if (!st.completed) return false;
     }
     // Search
-    if (q && !(f.name.toLowerCase().includes(q) || f.company.toLowerCase().includes(q) || f.city.toLowerCase().includes(q) || f.state.toLowerCase().includes(q))) return false;
+    if (q && !(f.name.toLowerCase().includes(q) || f.company.toLowerCase().includes(q) || f.city.toLowerCase().includes(q) || f.state.toLowerCase().includes(q) || (st.owner || '').toLowerCase().includes(q))) return false;
     return true;
   });
 
   var html = '';
   filtered.forEach(function(f) {
     var st = actionState[f.id] || {};
-    var cls = 'facility-card' + (st.completed ? ' completed' : '') + (selectedId === f.id ? ' selected' : '');
+    var hasOwner = !!(st.owner && st.owner.trim());
+    var isComplete = !!st.completed;
+    var cls = 'facility-card' + (isComplete ? ' completed' : (hasOwner ? ' in-progress' : '')) + (selectedId === f.id ? ' selected' : '');
     var shapeClass = f.shape === 'diamond' ? ' diamond' : f.shape === 'square' ? ' square' : '';
+    var badge = isComplete ? '<div class="fc-badge badge-done">✓ Done</div>' : (hasOwner ? '<div class="fc-badge badge-progress">In Progress</div>' : '');
+    var ownerLine = hasOwner ? '<div class="fc-owner">👤 ' + st.owner + '</div>' : '';
     html += '<div class="' + cls + '" data-id="' + f.id + '" onclick="selectFacility(\'' + f.id + '\')">' +
-      '<div class="fc-check">✅</div>' +
+      badge +
       '<div class="fc-top">' +
       '<div class="fc-dot' + shapeClass + '" style="background:' + f.color + '"></div>' +
       '<div class="fc-info">' +
       '<div class="fc-name">' + f.name + '</div>' +
       '<div class="fc-company">' + f.company + (f.parent && f.parent !== f.company ? ' · ' + f.parent : '') + '</div>' +
       '<div class="fc-city">' + f.city + ', ' + f.state + ' ' + f.country + '</div>' +
+      ownerLine +
       '</div></div></div>';
   });
   wrap.innerHTML = html || '<div style="text-align:center;padding:40px;color:var(--text-muted)">No facilities match current filters</div>';
