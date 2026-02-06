@@ -503,8 +503,10 @@ function enterApp() {
 
 // ===== DATABASE: LOAD =====
 async function loadActionState() {
+  console.log('Loading action state from Supabase...');
   var { data, error } = await supabase.from('facility_actions').select('*');
-  if (error) { console.error('Load error:', error); return; }
+  console.log('Load result:', { data: data, error: error });
+  if (error) { console.error('Load error:', error.message, error); return; }
   actionState = {};
   (data || []).forEach(function(row) {
     actionState[row.id] = {
@@ -540,9 +542,16 @@ async function saveToSupabase(id) {
     updated_by: currentUser ? currentUser.email : '',
     updated_at: new Date().toISOString()
   };
-  var { error } = await supabase.from('facility_actions').upsert(row, { onConflict: 'id' });
-  if (error) { console.error('Save error:', error); flashSync('Error', true); return; }
-  flashSync('Saved');
+  console.log('Saving to Supabase:', row);
+  try {
+    var result = await supabase.from('facility_actions').upsert(row, { onConflict: 'id' });
+    console.log('Supabase response:', JSON.stringify(result));
+    if (result.error) { console.error('Supabase error:', result.error.message, result.error); flashSync('Error', true); return; }
+    flashSync('Saved');
+  } catch(e) {
+    console.error('Supabase exception:', e);
+    flashSync('Error', true);
+  }
 }
 
 // ===== REALTIME SUBSCRIPTION =====
