@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NA Absorbent Hygiene Value Chain — Action Plan</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #0B1120;
+  --bg-panel: #111827;
+  --bg-card: #1E293B;
+  --bg-card-hover: #253449;
+  --bg-input: #0F172A;
+  --border: #1E293B;
+  --border-active: #3B82F6;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --accent-green: #22C55E;
+  --accent-blue: #3B82F6;
+  --accent-pink: #EC4899;
+  --accent-amber: #F59E0B;
+  --accent-purple: #8B5CF6;
+  --accent-cyan: #06B6D4;
+  --accent-red: #EF4444;
+  --accent-fuchsia: #D946EF;
+  --complete-green: #059669;
+  --radius: 10px;
+  --shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg-deep); color: var(--text-primary); overflow: hidden; height: 100vh; }
+
+/* LAYOUT */
+.app { display: flex; height: 100vh; }
+#map { flex: 1; min-width: 0; }
+.sidebar { width: 420px; background: var(--bg-panel); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; transition: width .3s; }
+.sidebar.collapsed { width: 0; border: none; }
+
+/* SIDEBAR TOGGLE */
+.sidebar-toggle { position: absolute; right: 420px; top: 50%; z-index: 1001; transform: translateY(-50%); background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); width: 28px; height: 56px; border-radius: 8px 0 0 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all .3s; }
+.sidebar-toggle:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+.sidebar-toggle.collapsed { right: 0; border-radius: 8px 0 0 8px; }
+
+/* SIDEBAR HEADER */
+.sb-header { padding: 16px 18px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.sb-header h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; color: var(--text-primary); }
+.sb-header .subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+
+/* STATS BAR */
+.stats-bar { display: flex; gap: 2px; padding: 10px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.stat { flex: 1; text-align: center; padding: 6px 4px; border-radius: 6px; background: var(--bg-input); }
+.stat .num { font-size: 18px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.stat .lbl { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 1px; }
+.progress-bar-wrap { padding: 8px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.progress-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
+.progress-track { height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan)); border-radius: 3px; transition: width .5s ease; }
+
+/* SEARCH */
+.search-wrap { padding: 10px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.search-wrap input { width: 100%; padding: 9px 12px 9px 34px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none; transition: border .2s; }
+.search-wrap input:focus { border-color: var(--accent-blue); }
+.search-wrap input::placeholder { color: var(--text-muted); }
+.search-icon { position: absolute; left: 28px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 13px; pointer-events: none; }
+
+/* LAYER TABS */
+.layer-tabs { display: flex; padding: 0 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.tab { flex: 1; padding: 10px 4px; text-align: center; font-size: 11px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; text-transform: uppercase; letter-spacing: .5px; }
+.tab:hover { color: var(--text-secondary); }
+.tab.active { border-bottom-color: var(--accent-blue); color: var(--text-primary); }
+.tab .count { font-family: 'JetBrains Mono', monospace; font-size: 10px; opacity: .7; margin-left: 3px; }
+
+/* FACILITY LIST */
+.list-wrap { flex: 1; overflow-y: auto; padding: 8px 12px; }
+.list-wrap::-webkit-scrollbar { width: 6px; }
+.list-wrap::-webkit-scrollbar-track { background: transparent; }
+.list-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.facility-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 6px; cursor: pointer; transition: all .2s; position: relative; }
+.facility-card:hover { background: var(--bg-card-hover); border-color: rgba(59,130,246,.3); transform: translateX(2px); }
+.facility-card.selected { border-color: var(--accent-blue); background: rgba(59,130,246,.08); box-shadow: 0 0 0 1px rgba(59,130,246,.2); }
+.facility-card.completed { border-left: 3px solid var(--complete-green); opacity: .7; }
+.facility-card.completed .fc-name { text-decoration: line-through; text-decoration-color: var(--text-muted); }
+
+.fc-top { display: flex; align-items: flex-start; gap: 10px; }
+.fc-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; border: 1.5px solid rgba(255,255,255,.2); }
+.fc-dot.diamond { border-radius: 2px; transform: rotate(45deg); }
+.fc-dot.square { border-radius: 2px; }
+.fc-info { flex: 1; min-width: 0; }
+.fc-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc-company { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc-city { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; margin-top: 1px; }
+.fc-check { position: absolute; top: 10px; right: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; }
+.facility-card.completed .fc-check { opacity: 1; }
+
+/* DETAIL PANEL — inline mode, replaces list */
+.detail-panel { display: none; flex-direction: column; overflow-y: auto; flex: 1; }
+.detail-panel.open { display: flex; }
+.detail-panel::-webkit-scrollbar { width: 6px; }
+.detail-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+/* hide list when detail open */
+.list-wrap.hidden { display: none; }
+
+.dp-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--bg-panel); }
+.dp-title { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dp-close { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+.dp-close:hover { background: var(--bg-card); color: var(--text-primary); }
+
+.dp-body { padding: 10px 14px 14px; overflow-y: auto; flex: 1; }
+.dp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-bottom: 8px; }
+.dp-grid.full { grid-template-columns: 1fr; }
+.dp-field { min-width: 0; }
+.dp-label { font-size: 9px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 2px; font-weight: 600; }
+.dp-value { font-size: 12px; color: var(--text-primary); overflow-wrap: break-word; }
+
+.dp-tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; margin-right: 3px; }
+
+.dp-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.dp-section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--accent-blue); margin-bottom: 8px; }
+
+.dp-input { width: 100%; padding: 7px 10px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 12px; font-family: 'DM Sans', sans-serif; outline: none; resize: vertical; transition: border .2s; }
+.dp-input:focus { border-color: var(--accent-blue); }
+.dp-input::placeholder { color: var(--text-muted); }
+textarea.dp-input { min-height: 48px; }
+.dp-input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+
+.dp-actions { display: flex; gap: 6px; margin-top: 10px; }
+.btn { padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; font-family: 'DM Sans', sans-serif; cursor: pointer; border: none; transition: all .2s; white-space: nowrap; }
+.btn-complete { background: var(--complete-green); color: #fff; flex: 1; }
+.btn-complete:hover { background: #047857; }
+.btn-complete.is-complete { background: var(--bg-card); color: var(--accent-green); border: 1px solid var(--accent-green); }
+.btn-save { background: var(--accent-blue); color: #fff; }
+.btn-save:hover { background: #2563EB; }
+.btn-flyto { background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border); }
+.btn-flyto:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+
+/* FILTER CHIPS BAR */
+.filter-bar { padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.filter-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.filter-row:last-child { margin-bottom: 0; }
+.filter-row-label { font-size: 9px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 3px; font-weight: 600; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 12px; font-size: 10px; font-weight: 600; cursor: pointer; border: 1.5px solid; transition: all .15s; user-select: none; }
+.chip .cdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.chip.on { opacity: 1; }
+.chip.off { opacity: 0.3; border-style: dashed; }
+
+/* STATUS + EXPORT ROW */
+.toolbar-row { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; align-items: center; }
+.status-toggle { display: flex; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); flex: 1; }
+.st-btn { flex: 1; padding: 6px 4px; text-align: center; font-size: 10px; font-weight: 600; cursor: pointer; background: var(--bg-input); color: var(--text-muted); transition: all .15s; border: none; font-family: 'DM Sans', sans-serif; text-transform: uppercase; letter-spacing: .3px; }
+.st-btn.active { background: var(--accent-blue); color: #fff; }
+.st-btn:not(:last-child) { border-right: 1px solid var(--border); }
+.btn-export { padding: 6px 12px; border-radius: 6px; font-size: 10px; font-weight: 700; font-family: 'DM Sans', sans-serif; cursor: pointer; border: 1px solid var(--accent-green); background: rgba(34,197,94,.1); color: var(--accent-green); transition: all .2s; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
+.btn-export:hover { background: var(--accent-green); color: #fff; }
+
+/* MAP OVERRIDES */
+.leaflet-popup-content-wrapper { background: var(--bg-panel); color: var(--text-primary); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.leaflet-popup-tip { background: var(--bg-panel); }
+.leaflet-popup-content { font-size: 12px; line-height: 1.5; font-family: 'DM Sans', sans-serif; }
+.leaflet-popup-content b { color: #7DD3FC; }
+
+/* CUSTOM TOOLTIP */
+.custom-tooltip { background: #111827 !important; border: 1px solid #1E293B !important; border-radius: 10px !important; box-shadow: 0 12px 40px rgba(0,0,0,.55) !important; padding: 10px 12px !important; color: #F1F5F9 !important; max-width: 300px !important; }
+.custom-tooltip::before { border-top-color: #111827 !important; }
+
+/* MAP LEGEND (minimal) */
+.map-legend { position: absolute; bottom: 20px; left: 10px; z-index: 1000; background: rgba(11,17,32,.92); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); backdrop-filter: blur(8px); }
+.ml-row { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-secondary); margin: 3px 0; }
+.ml-dot { width: 8px; height: 8px; border-radius: 50%; }
+.ml-diamond { width: 8px; height: 8px; transform: rotate(45deg); border-radius: 1px; }
+.ml-square { width: 8px; height: 8px; border-radius: 1px; }
+
+@media (max-width: 900px) {
+  .sidebar { width: 100%; position: absolute; right: 0; top: 0; bottom: 0; z-index: 1002; }
+}
+</style></head><body>
+<div class="app">
+  <div id="map"></div>
+  <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">◀</button>
+  <div class="sidebar" id="sidebar">
+    <div class="sb-header">
+      <h1>🏭 Value Chain Action Plan</h1>
+      <div class="subtitle">Cellulose → Nonwovens → Products</div>
+    </div>
+    <div class="stats-bar">
+      <div class="stat"><div class="num" style="color:var(--accent-green)" id="statCellulose">58</div><div class="lbl">Cellulose</div></div>
+      <div class="stat"><div class="num" style="color:var(--accent-pink)" id="statNW">32</div><div class="lbl">Nonwoven</div></div>
+      <div class="stat"><div class="num" style="color:var(--accent-amber)" id="statHygiene">36</div><div class="lbl">Hygiene</div></div>
+      <div class="stat"><div class="num" style="color:var(--accent-cyan)" id="statTotal">126</div><div class="lbl">Total</div></div>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-label"><span>Action Progress</span><span id="progressPct">0%</span></div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    </div>
+    <div class="search-wrap" style="position:relative">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Search by name, company, or location..." oninput="filterList()">
+    </div>
+    <div class="layer-tabs">
+      <div class="tab active" data-layer="all" onclick="switchTab('all',this)">All <span class="count" id="tabAll">126</span></div>
+      <div class="tab" data-layer="cellulose" onclick="switchTab('cellulose',this)">Cellulose <span class="count">58</span></div>
+      <div class="tab" data-layer="nonwoven" onclick="switchTab('nonwoven',this)">Nonwoven <span class="count">32</span></div>
+      <div class="tab" data-layer="hygiene" onclick="switchTab('hygiene',this)">Hygiene <span class="count">36</span></div>
+    </div>
+    <div class="filter-bar" id="filterBar">
+      <div class="filter-row-label">Type Filters</div>
+      <div class="filter-row" id="chipRow"></div>
+    </div>
+    <div class="toolbar-row">
+      <div class="status-toggle">
+        <button class="st-btn active" data-sf="all" onclick="setStatusFilter('all',this)">All</button>
+        <button class="st-btn" data-sf="open" onclick="setStatusFilter('open',this)">Open</button>
+        <button class="st-btn" data-sf="done" onclick="setStatusFilter('done',this)">Done</button>
+      </div>
+      <button class="btn-export" onclick="exportExcel()">📥 Export</button>
+    </div>
+    <div class="list-wrap" id="listWrap"></div>
+    <div class="detail-panel" id="detailPanel">
+      <div class="dp-header">
+        <div class="dp-title" id="dpTitle">Facility Detail</div>
+        <button class="dp-close" onclick="closeDetail()">✕</button>
+      </div>
+      <div class="dp-body" id="dpBody"></div>
+    </div>
+  </div>
+</div>
+
+<div class="map-legend">
+  <div class="ml-row"><div class="ml-dot" style="background:var(--accent-green)"></div>Fluff Pulp</div>
+  <div class="ml-row"><div class="ml-dot" style="background:#F97316"></div>Specialty/Dissolving</div>
+  <div class="ml-row"><div class="ml-dot" style="background:var(--accent-blue)"></div>NBSK</div>
+  <div class="ml-row"><div class="ml-dot" style="background:var(--accent-purple)"></div>BCTMP</div>
+  <div class="ml-row"><div class="ml-dot" style="background:var(--text-muted)"></div>Papergrade</div>
+  <div class="ml-row"><div class="ml-diamond" style="background:var(--accent-pink)"></div>Nonwoven Converter</div>
+  <div class="ml-row"><div class="ml-square" style="background:var(--accent-red)"></div>Baby Diapers</div>
+  <div class="ml-row"><div class="ml-square" style="background:var(--accent-amber)"></div>Adult Incontinence</div>
+  <div class="ml-row"><div class="ml-square" style="background:var(--accent-cyan)"></div>Wipes</div>
+  <div class="ml-row"><div class="ml-square" style="background:var(--accent-fuchsia)"></div>Full Portfolio</div>
+</div>
+
+<script>
+// ===== MAP INIT =====
+var map = L.map('map', {zoomControl: true}).setView([38, -92], 4);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: 'CartoDB', maxZoom: 18
+}).addTo(map);
+
+// ===== DATA =====
+var facilities = [
+  // CELLULOSE - FLUFF PULP
+  {id:'gcf-riegelwood',name:'GCF Riegelwood Mill',company:'Global Cellulose Fibers',parent:'American Industrial Partners',city:'Riegelwood',state:'NC',country:'USA',lat:34.3636,lon:-78.2325,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'',products:'Fluff pulp, softwood pulp',applications:'Diapers, feminine care, incontinence',contact:'',phone:'',email:'',notes:'Reduced capacity after 2023 machine closure; sold by IP to AIP Jan 2026'},
+  {id:'gcf-columbus',name:'GCF Columbus Mill',company:'Global Cellulose Fibers',parent:'American Industrial Partners',city:'Columbus',state:'MS',country:'USA',lat:33.4437,lon:-88.3695,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'',products:'Fluff pulp, modified fiber',applications:'Diapers, hygiene, tissue',contact:'',phone:'',email:'',notes:'Includes modified fiber converting plant (Helix)'},
+  {id:'gcf-flintriver',name:'GCF Flint River Mill',company:'Global Cellulose Fibers',parent:'American Industrial Partners',city:'Oglethorpe',state:'GA',country:'USA',lat:32.2937,lon:-84.0666,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'',products:'Bleached fluff pulp',applications:'Diapers, hygiene products',contact:'',phone:'',email:'',notes:'Ex-Weyerhaeuser; acquired by IP 2016'},
+  {id:'gcf-franklin',name:'GCF Franklin Mill',company:'Global Cellulose Fibers',parent:'American Industrial Partners',city:'Franklin',state:'VA',country:'USA',lat:36.6776,lon:-76.9222,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'',products:'Fluff pulp, softwood',applications:'Hygiene, tissue, towel',contact:'',phone:'',email:'',notes:'Legacy IP mill'},
+  {id:'gcf-newbern',name:'GCF New Bern Mill',company:'Global Cellulose Fibers',parent:'American Industrial Partners',city:'New Bern',state:'NC',country:'USA',lat:35.0854,lon:-77.0369,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'',products:'Fluff pulp',applications:'Diapers, feminine care',contact:'',phone:'',email:'',notes:'Ex-Weyerhaeuser'},
+  {id:'gcf-portwentworth',name:'GCF Port Wentworth Mill',company:'Global Cellulose Fibers',parent:'American Industrial Partners',city:'Port Wentworth',state:'GA',country:'USA',lat:32.1527,lon:-81.1553,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'',products:'Fluff pulp',applications:'Hygiene, absorbent products',contact:'',phone:'',email:'',notes:'Near Port of Savannah; export hub'},
+  {id:'gcf-pensacola',name:'GCF Pensacola Mill',company:'Global Cellulose Fibers',parent:'American Industrial Partners',city:'Pensacola',state:'FL',country:'USA',lat:30.4213,lon:-87.2169,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'',products:'Fluff pulp (reduced)',applications:'Hygiene',contact:'',phone:'',email:'',notes:'Machine #4 permanently idled 2023'},
+  {id:'gcf-grandeprairie',name:'GCF Grande Prairie Mill',company:'Global Cellulose Fibers',parent:'American Industrial Partners',city:'Grande Prairie',state:'AB',country:'Canada',lat:55.1707,lon:-118.7946,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'',products:'Fluff pulp, NBSK',applications:'Hygiene, tissue',contact:'',phone:'',email:'',notes:'Only Canadian GCF mill; ex-Weyerhaeuser'},
+  {id:'gcf-georgetown',name:'GCF Georgetown Mill',company:'Global Cellulose Fibers',parent:'American Industrial Partners',city:'Georgetown',state:'SC',country:'USA',lat:33.3710,lon:-79.2947,layer:'cellulose',type:'Closed',color:'#6B7280',shape:'circle',status:'CLOSED 2024',capacity:'300,000 MT',products:'Fluff pulp (former)',applications:'',contact:'',phone:'',email:'',notes:'CLOSED 2024. 300K MT transferred to other GCF mills; 674 jobs lost'},
+  // GP Cellulose
+  {id:'gp-brunswick',name:'GP Brunswick Cellulose',company:'GP Cellulose',parent:'Georgia-Pacific (Koch Industries)',city:'Brunswick',state:'GA',country:'USA',lat:31.1496,lon:-81.4915,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'',products:'Fluff pulp, specialty',applications:'Diapers, hygiene (global export)',contact:'',phone:'',email:'',notes:'$200M bio-refinery upgrade; 650 employees; 80+ years; strategic port access'},
+  {id:'gp-alabamariver',name:'GP Alabama River Cellulose',company:'GP Cellulose',parent:'Georgia-Pacific (Koch Industries)',city:'Perdue Hill',state:'AL',country:'USA',lat:31.4433,lon:-87.5639,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'',products:'Fluff pulp, SBSK, UKP',applications:'Absorbent hygiene, tissue, paper',contact:'',phone:'',email:'',notes:'Multi-grade facility'},
+  {id:'gp-leafriver',name:'GP Leaf River Cellulose',company:'GP Cellulose',parent:'Georgia-Pacific (Koch Industries)',city:'New Augusta',state:'MS',country:'USA',lat:31.2025,lon:-89.0339,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'',products:'Fluff pulp, SBSK, specialty',applications:'Hygiene, specialty',contact:'',phone:'',email:'',notes:'State-of-the-art facility'},
+  {id:'gp-palatka',name:'GP Palatka Mill',company:'GP Cellulose',parent:'Georgia-Pacific (Koch Industries)',city:'Palatka',state:'FL',country:'USA',lat:29.6486,lon:-81.6526,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Kraft pulp, cellulose',applications:'Paper, packaging',contact:'',phone:'',email:'',notes:'Market pulp mill'},
+  {id:'gp-cotton',name:'GP Cotton Cellulose',company:'GP Cellulose',parent:'Georgia-Pacific (Koch Industries)',city:'Memphis',state:'TN',country:'USA',lat:35.1175,lon:-89.9711,layer:'cellulose',type:'Specialty',color:'#F97316',shape:'circle',status:'Active',capacity:'',products:'Cotton linters pulp',applications:'Currency, filters, specialty',contact:'',phone:'',email:'',notes:'Unique cotton linters mill'},
+  // Domtar Fluff
+  {id:'dom-ashdown',name:'Domtar Ashdown Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Ashdown',state:'AR',country:'USA',lat:33.6742,lon:-94.1308,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'735,000 MT/yr',products:'Lighthouse fluff pulp',applications:'Diapers, feminine care, adult incontinence',contact:'',phone:'',email:'',notes:'One of worlds largest fluff pulp mills; $160M conversion 2016; 800 employees'},
+  {id:'dom-plymouth',name:'Domtar Plymouth Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Plymouth',state:'NC',country:'USA',lat:35.8569,lon:-76.7481,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'380,000 MT/yr',products:'Lighthouse fluff pulp',applications:'Adult incontinence, diapers, hygiene',contact:'',phone:'',email:'',notes:'100% renewable energy; benchmark Lighthouse grade; opened 1937'},
+  {id:'dom-coosapines',name:'Domtar Coosa Pines Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Coosa Pines',state:'AL',country:'USA',lat:33.0614,lon:-86.3000,layer:'cellulose',type:'Fluff Pulp',color:'#22C55E',shape:'circle',status:'Active',capacity:'',products:'Fluff pulp, kraft',applications:'Tissue, absorbent consumer products',contact:'',phone:'',email:'',notes:'Fluff pulp added 1976; ex-Resolute; $63M upgrade 2000'},
+  // Domtar Canada & other
+  {id:'dom-espanola',name:'Domtar Espanola Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Espanola',state:'ON',country:'Canada',lat:46.2560,lon:-81.7650,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'',products:'NBSK pulp',applications:'Tissue, paper',contact:'',phone:'',email:'',notes:''},
+  {id:'dom-dryden',name:'Domtar Dryden Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Dryden',state:'ON',country:'Canada',lat:49.7866,lon:-92.8350,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'',products:'NBSK pulp',applications:'Tissue, paper',contact:'',phone:'',email:'',notes:'To be divested per competition consent agreement'},
+  {id:'dom-windsor',name:'Domtar Windsor Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Windsor',state:'QC',country:'Canada',lat:45.5697,lon:-71.9948,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Hardwood pulp, fine paper',applications:'Paper, specialty',contact:'',phone:'',email:'',notes:'Last fully integrated fine paper mill in Canada'},
+  {id:'dom-kenogami',name:'Domtar Kénogami Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Jonquière',state:'QC',country:'Canada',lat:48.4136,lon:-71.2516,layer:'cellulose',type:'Specialty',color:'#F97316',shape:'circle',status:'Active',capacity:'',products:'Paper, cellulose filaments',applications:'Cellulose filaments (biomaterial)',contact:'',phone:'',email:'',notes:'$38M cellulose filaments facility 2022-2023'},
+  {id:'dom-howesound',name:'Domtar Howe Sound Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Port Mellon',state:'BC',country:'Canada',lat:49.5221,lon:-123.4876,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'',products:'NBSK pulp',applications:'Tissue, paper towels',contact:'',phone:'',email:'',notes:'Rebuilt 1991'},
+  {id:'dom-crofton',name:'Domtar Crofton Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Crofton',state:'BC',country:'Canada',lat:48.8627,lon:-123.6350,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'',products:'Kraft pulp',applications:'Paper, tissue',contact:'',phone:'',email:'',notes:'84% renewable energy; two pulp lines'},
+  {id:'dom-skookumchuck',name:'Domtar Skookumchuck Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Skookumchuck',state:'BC',country:'Canada',lat:50.0571,lon:-115.9476,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'',products:'NBSK pulp',applications:'Tissue, paper',contact:'',phone:'',email:'',notes:'Highly modernized'},
+  {id:'dom-meadowlake',name:'Domtar Meadow Lake Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Meadow Lake',state:'SK',country:'Canada',lat:54.1245,lon:-108.4440,layer:'cellulose',type:'BCTMP',color:'#A855F7',shape:'circle',status:'Active',capacity:'',products:'BCTMP',applications:'Tissue, packaging, board',contact:'',phone:'',email:'',notes:''},
+  {id:'dom-stfelicien',name:'Domtar Saint-Félicien Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Saint-Félicien',state:'QC',country:'Canada',lat:48.6524,lon:-72.4497,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'',products:'NBSK pulp',applications:'Tissue, paper',contact:'',phone:'',email:'',notes:'Ex-Resolute; greenhouse co-gen partnership'},
+  {id:'dom-thunderbay',name:'Domtar Thunder Bay Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Thunder Bay',state:'ON',country:'Canada',lat:48.3809,lon:-89.2477,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'',products:'NBSK, mechanical pulp',applications:'Paper, tissue',contact:'',phone:'',email:'',notes:'Ex-Resolute; to be divested per consent agreement'},
+  {id:'dom-marlboro',name:'Domtar Marlboro Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Bennettsville',state:'SC',country:'USA',lat:34.6174,lon:-79.6846,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Pulp and paper',applications:'Copy paper, specialty',contact:'',phone:'',email:'',notes:'Last greenfield mill built in US (1990)'},
+  {id:'dom-rothschild',name:'Domtar Rothschild Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Rothschild',state:'WI',country:'USA',lat:44.8875,lon:-89.6168,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Uncoated freesheet',applications:'Paper products',contact:'',phone:'',email:'',notes:''},
+  {id:'dom-kingsport',name:'Domtar Kingsport Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Kingsport',state:'TN',country:'USA',lat:36.5485,lon:-82.5618,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Recycled containerboard',applications:'Packaging',contact:'',phone:'',email:'',notes:'Converted to 100% recycled containerboard 2023'},
+  {id:'dom-calhoun',name:'Domtar Calhoun Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Calhoun',state:'TN',country:'USA',lat:35.2960,lon:-84.7453,layer:'cellulose',type:'Closed',color:'#6B7280',shape:'circle',status:'Idled 2021',capacity:'',products:'Pulp, paper (idled)',applications:'',contact:'',phone:'',email:'',notes:'Pulp and paper ops indefinitely idled Dec 2021'},
+  // RYAM
+  {id:'ryam-jesup',name:'RYAM Jesup Plant',company:'RYAM',parent:'Rayonier Advanced Materials',city:'Jesup',state:'GA',country:'USA',lat:31.6039,lon:-81.8840,layer:'cellulose',type:'Specialty',color:'#F97316',shape:'circle',status:'Active',capacity:'600,000 MT/yr',products:'Cellulose specialties, fluff, acetate',applications:'Filters, pharma, diapers, textiles',contact:'',phone:'',email:'',notes:"World's largest cellulose specialties; 330K CS + 270K fluff; 800+ employees"},
+  {id:'ryam-fernandina',name:'RYAM Fernandina Beach',company:'RYAM',parent:'Rayonier Advanced Materials',city:'Fernandina Beach',state:'FL',country:'USA',lat:30.6466,lon:-81.4628,layer:'cellulose',type:'Specialty',color:'#F97316',shape:'circle',status:'Active',capacity:'155,000 MT/yr',products:'Cellulose specialties',applications:'Pharma, food, filters',contact:'',phone:'',email:'',notes:'Operating since 1939'},
+  {id:'ryam-temiscaming',name:'RYAM Témiscaming Plant',company:'RYAM',parent:'Rayonier Advanced Materials',city:'Témiscaming',state:'QC',country:'Canada',lat:46.7208,lon:-79.0969,layer:'cellulose',type:'Specialty',color:'#F97316',shape:'circle',status:'Active',capacity:'',products:'High-purity cellulose, HY pulp',applications:'Cellulose, energy, paperboard',contact:'',phone:'',email:'',notes:'700+ employees; ex-Tembec; since 1919'},
+  // Mercer
+  {id:'mercer-celgar',name:'Mercer Celgar Mill',company:'Mercer International',parent:'Mercer International Inc.',city:'Castlegar',state:'BC',country:'Canada',lat:49.3144,lon:-117.6594,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'500,000 MT/yr',products:'NBSK pulp',applications:'Tissue, printing, specialty',contact:'',phone:'',email:'',notes:''},
+  {id:'mercer-peaceriver',name:'Mercer Peace River Mill',company:'Mercer International',parent:'Mercer International Inc.',city:'Peace River',state:'AB',country:'Canada',lat:56.2256,lon:-117.2786,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'400,000 MT/yr',products:'NBHK pulp',applications:'Tissue, paper',contact:'',phone:'',email:'',notes:'Northern Alberta; ex-DMI'},
+  // West Fraser / Cariboo
+  {id:'wf-cariboo',name:'Cariboo Pulp & Paper',company:'West Fraser',parent:'West Fraser Timber Co.',city:'Quesnel',state:'BC',country:'Canada',lat:52.9784,lon:-122.4936,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'340,000 MT/yr',products:'NBSK pulp',applications:'Paper, tissue',contact:'',phone:'',email:'',notes:'100% West Fraser ownership from April 2024 (ex-JV with Mercer)'},
+  // Millar Western (Atlas)
+  {id:'mw-quesnelriver',name:'Quesnel River Pulp',company:'Millar Western',parent:'Atlas Holdings',city:'Quesnel',state:'BC',country:'Canada',lat:52.9684,lon:-122.5036,layer:'cellulose',type:'BCTMP',color:'#A855F7',shape:'circle',status:'Active',capacity:'',products:'BCTMP',applications:'Paper, board, tissue',contact:'',phone:'',email:'',notes:'Acquired from West Fraser April 2024'},
+  {id:'mw-slavelake',name:'Slave Lake Pulp',company:'Millar Western',parent:'Atlas Holdings',city:'Slave Lake',state:'AB',country:'Canada',lat:55.2719,lon:-114.7692,layer:'cellulose',type:'BCTMP',color:'#A855F7',shape:'circle',status:'Active',capacity:'',products:'BCTMP',applications:'Paper, board, tissue',contact:'',phone:'',email:'',notes:'Acquired from West Fraser April 2024'},
+  {id:'mw-whitecourt',name:'Whitecourt Pulp',company:'Millar Western',parent:'Atlas Holdings / Millar Western',city:'Whitecourt',state:'AB',country:'Canada',lat:54.1489,lon:-115.6811,layer:'cellulose',type:'BCTMP',color:'#A855F7',shape:'circle',status:'Active',capacity:'',products:'BCTMP',applications:'Paper products',contact:'',phone:'',email:'',notes:'Original Millar Western facility'},
+  // Mondi
+  {id:'mondi-hinton',name:'Mondi Hinton Mill',company:'Mondi',parent:'Mondi Group',city:'Hinton',state:'AB',country:'Canada',lat:53.3965,lon:-117.5814,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'250,000 MT/yr',products:'Unbleached kraft pulp',applications:'Kraft paper, industrial bags',contact:'',phone:'',email:'',notes:'Acquired from West Fraser 2024; new paper machine planned'},
+  // Canfor
+  {id:'canfor-inter',name:'Canfor Intercontinental',company:'Canfor Pulp',parent:'Canfor Corporation',city:'Prince George',state:'BC',country:'Canada',lat:53.8830,lon:-122.7700,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'',products:'NBSK pulp',applications:'Paper, tissue',contact:'',phone:'',email:'',notes:'Part of Prince George 3-mill complex'},
+  {id:'canfor-pg',name:'Canfor Prince George Mill',company:'Canfor Pulp',parent:'Canfor Corporation',city:'Prince George',state:'BC',country:'Canada',lat:53.9035,lon:-122.7460,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'',products:'NBSK, kraft',applications:'Paper, packaging',contact:'',phone:'',email:'',notes:''},
+  {id:'canfor-northwood',name:'Canfor Northwood Mill',company:'Canfor Pulp',parent:'Canfor Corporation',city:'Prince George',state:'BC',country:'Canada',lat:53.9600,lon:-122.7100,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'',products:'NBSK pulp',applications:'Tissue, paper',contact:'',phone:'',email:'',notes:''},
+  // Irving
+  {id:'irving-saintjohn',name:'Irving Pulp Mill',company:'Irving Pulp & Paper',parent:'J.D. Irving Ltd.',city:'Saint John',state:'NB',country:'Canada',lat:45.2644,lon:-66.0563,layer:'cellulose',type:'NBSK',color:'#3B82F6',shape:'circle',status:'Active',capacity:'',products:'NBSK, hardwood kraft',applications:'Paper, tissue',contact:'',phone:'',email:'',notes:'East coast; integrated with Irving operations'},
+  // Kruger
+  {id:'kruger-3r',name:'Kruger Trois-Rivières',company:'Kruger',parent:'Kruger Inc.',city:'Trois-Rivières',state:'QC',country:'Canada',lat:46.3432,lon:-72.5418,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'TMP, newsprint, cellulose filaments',applications:'Newsprint, biomaterials',contact:'',phone:'',email:'',notes:'Cellulose filament demo plant (2014)'},
+  {id:'kruger-cornerbrook',name:'Kruger Corner Brook',company:'Kruger',parent:'Kruger Inc.',city:'Corner Brook',state:'NL',country:'Canada',lat:48.9500,lon:-57.9500,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Newsprint, paper',applications:'Publishing',contact:'',phone:'',email:'',notes:'Newfoundland operations'},
+  // Sappi
+  {id:'sappi-somerset',name:'Sappi Somerset Mill',company:'Sappi North America',parent:'Sappi Ltd.',city:'Skowhegan',state:'ME',country:'USA',lat:44.7741,lon:-69.7223,layer:'cellulose',type:'Specialty',color:'#F97316',shape:'circle',status:'Active',capacity:'',products:'Dissolving wood pulp',applications:'Textiles (viscose), specialties',contact:'',phone:'',email:'',notes:'One of few NA dissolving pulp mills'},
+  {id:'sappi-cloquet',name:'Sappi Cloquet Mill',company:'Sappi North America',parent:'Sappi Ltd.',city:'Cloquet',state:'MN',country:'USA',lat:46.7218,lon:-92.4601,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Coated paper, pulp',applications:'Printing, specialty papers',contact:'',phone:'',email:'',notes:''},
+  {id:'sappi-westbrook',name:'Sappi Westbrook Mill',company:'Sappi North America',parent:'Sappi Ltd.',city:'Westbrook',state:'ME',country:'USA',lat:43.6767,lon:-70.3553,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Coated paper',applications:'Printing, publishing',contact:'',phone:'',email:'',notes:''},
+  // Clearwater
+  {id:'clear-lewiston',name:'Clearwater Lewiston Mill',company:'Clearwater Paper',parent:'Clearwater Paper Corp.',city:'Lewiston',state:'ID',country:'USA',lat:46.4004,lon:-117.0012,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Pulp, paperboard',applications:'Tissue, folding carton',contact:'',phone:'',email:'',notes:'Integrated pulp/paperboard'},
+  // Fortress
+  {id:'fortress-thurso',name:'Fortress Thurso Mill',company:'Fortress Specialty Cellulose',parent:'Aditya Birla Group',city:'Thurso',state:'QC',country:'Canada',lat:45.5939,lon:-75.2431,layer:'cellulose',type:'Specialty',color:'#F97316',shape:'circle',status:'Active',capacity:'200,000 MT/yr',products:'Dissolving pulp',applications:'Viscose/rayon textiles',contact:'',phone:'',email:'',notes:'Converted from kraft 2010; specialty cellulose'},
+  // ND Paper
+  {id:'nd-oldtown',name:'ND Paper Old Town Mill',company:'ND Paper',parent:'Nine Dragons Paper',city:'Old Town',state:'ME',country:'USA',lat:44.9345,lon:-68.6646,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Pulp, recycled containerboard',applications:'Packaging',contact:'',phone:'',email:'',notes:''},
+  {id:'nd-rumford',name:'ND Paper Rumford Mill',company:'ND Paper',parent:'Nine Dragons Paper',city:'Rumford',state:'ME',country:'USA',lat:44.5537,lon:-70.5509,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Pulp, paper',applications:'Paper, packaging',contact:'',phone:'',email:'',notes:''},
+  {id:'nd-biron',name:'ND Paper Biron Mill',company:'ND Paper',parent:'Nine Dragons Paper',city:'Wisconsin Rapids',state:'WI',country:'USA',lat:44.4433,lon:-89.7893,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Recycled fiber, paper',applications:'Packaging',contact:'',phone:'',email:'',notes:''},
+  // Others
+  {id:'gp-texarkana',name:'Graphic Pkg Texarkana',company:'Graphic Packaging',parent:'Graphic Packaging Intl.',city:'Texarkana',state:'TX',country:'USA',lat:33.3943,lon:-94.1077,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Paperboard, pulp',applications:'Folding carton, food packaging',contact:'',phone:'',email:'',notes:'Major integrated mill'},
+  {id:'sofidel-circleville',name:'Sofidel Circleville',company:'Sofidel America',parent:'Sofidel Group',city:'Circleville',state:'OH',country:'USA',lat:39.6006,lon:-82.9460,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Tissue, TAD tissue',applications:'Consumer tissue',contact:'',phone:'',email:'',notes:'Integrated tissue; opened 2018; Italian parent'},
+  {id:'dom-portalberni',name:'Domtar Port Alberni Mill',company:'Domtar',parent:'Paper Excellence Group',city:'Port Alberni',state:'BC',country:'Canada',lat:49.2340,lon:-124.8030,layer:'cellulose',type:'Papergrade',color:'#64748B',shape:'circle',status:'Active',capacity:'',products:'Specialty papers',applications:'Publishing, specialty',contact:'',phone:'',email:'',notes:'89% renewable energy'},
+
+  // ===== NONWOVEN CONVERTERS =====
+  // Magnera
+  {id:'mag-augusta',name:'Magnera Augusta',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Augusta',state:'KY',country:'USA',lat:38.7543,lon:-84.0002,layer:'nonwoven',type:'Spunmelt',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunmelt nonwovens',applications:'Hygiene, healthcare',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-benson',name:'Magnera Benson',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Benson',state:'NC',country:'USA',lat:35.3822,lon:-78.5483,layer:'nonwoven',type:'Spunlace',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunlace nonwovens',applications:'Wipes, hygiene',contact:'',phone:'',email:'',notes:'Ex-Jacob Holm'},
+  {id:'mag-dalton',name:'Magnera Dalton',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Dalton',state:'GA',country:'USA',lat:34.7698,lon:-84.9702,layer:'nonwoven',type:'Spunbond',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunbond nonwovens',applications:'Hygiene, industrial',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-mcalester',name:'Magnera McAlester',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'McAlester',state:'OK',country:'USA',lat:34.9334,lon:-95.7697,layer:'nonwoven',type:'Spunmelt',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunmelt nonwovens',applications:'Healthcare, hygiene',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-mooresville',name:'Magnera Mooresville',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Mooresville',state:'NC',country:'USA',lat:35.5849,lon:-80.8101,layer:'nonwoven',type:'Spunmelt',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunmelt nonwovens',applications:'Hygiene, baby care',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-nashville',name:'Magnera Nashville',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Nashville',state:'TN',country:'USA',lat:36.1627,lon:-86.7816,layer:'nonwoven',type:'Film/Laminate',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Film, laminate',applications:'Hygiene, healthcare',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-oldhickory',name:'Magnera Old Hickory',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Old Hickory',state:'TN',country:'USA',lat:36.2544,lon:-86.6519,layer:'nonwoven',type:'Spunmelt',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunmelt nonwovens',applications:'Hygiene, filtration',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-statesville',name:'Magnera Statesville',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Statesville',state:'NC',country:'USA',lat:35.7826,lon:-80.8873,layer:'nonwoven',type:'Spunmelt/Meltblown',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunmelt, meltblown',applications:'Healthcare, hygiene',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-washington',name:'Magnera Washington',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Washington',state:'GA',country:'USA',lat:33.7365,lon:-82.7393,layer:'nonwoven',type:'Spunbond',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunbond nonwovens',applications:'Hygiene, infrastructure',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-waynesboro',name:'Magnera Waynesboro',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Waynesboro',state:'VA',country:'USA',lat:38.0685,lon:-78.8895,layer:'nonwoven',type:'Spunlace',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunlace (Sontara)',applications:'Healthcare, industrial wipes',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-asheville',name:'Magnera Asheville',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Asheville',state:'NC',country:'USA',lat:35.5951,lon:-82.5515,layer:'nonwoven',type:'Wetlaid',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Wetlaid nonwovens',applications:'Filtration, food & beverage',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-mountholly',name:'Magnera Mount Holly',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Mount Holly',state:'NC',country:'USA',lat:35.2979,lon:-81.0159,layer:'nonwoven',type:'Airlaid',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Airlaid nonwovens',applications:'Tabletop, hygiene',contact:'',phone:'',email:'',notes:'Ex-Georgia-Pacific; acquired 2021'},
+  {id:'mag-fortsmith',name:'Magnera Fort Smith',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Fort Smith',state:'AR',country:'USA',lat:35.3859,lon:-94.3985,layer:'nonwoven',type:'Spunlace',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunlace nonwovens',applications:'Wipes',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-gainesville',name:'Magnera Gainesville',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Gainesville',state:'GA',country:'USA',lat:34.2979,lon:-83.8241,layer:'nonwoven',type:'Spunbond',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunbond nonwovens',applications:'Hygiene, industrial',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-york',name:'Magnera York',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'York',state:'PA',country:'USA',lat:39.9626,lon:-76.7277,layer:'nonwoven',type:'Airlaid/Wetlaid',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Airlaid, wetlaid',applications:'Food & beverage, specialty',contact:'',phone:'',email:'',notes:'Ex-Glatfelter HQ'},
+  {id:'mag-northbay',name:'Magnera North Bay',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'North Bay',state:'ON',country:'Canada',lat:46.3091,lon:-79.4608,layer:'nonwoven',type:'Spunmelt',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunmelt nonwovens',applications:'Hygiene, healthcare',contact:'',phone:'',email:'',notes:'Only Canadian manufacturing site'},
+  {id:'mag-gatineau',name:'Magnera Gatineau',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Gatineau',state:'QC',country:'Canada',lat:45.4765,lon:-75.7013,layer:'nonwoven',type:'Airlaid',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Airlaid nonwovens',applications:'Hygiene, tabletop',contact:'',phone:'',email:'',notes:'Ex-Concert Industries'},
+  {id:'mag-atlacomulco',name:'Magnera Atlacomulco',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'Atlacomulco',state:'Estado de México',country:'Mexico',lat:19.7986,lon:-99.8725,layer:'nonwoven',type:'Spunmelt',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunmelt nonwovens',applications:'Hygiene',contact:'',phone:'',email:'',notes:''},
+  {id:'mag-slp',name:'Magnera San Luis Potosí',company:'Magnera',parent:'Magnera Corp (NYSE: MAGN)',city:'San Luis Potosí',state:'SLP',country:'Mexico',lat:22.1565,lon:-100.9855,layer:'nonwoven',type:'Spunmelt',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunmelt nonwovens',applications:'Hygiene',contact:'',phone:'',email:'',notes:''},
+  // Fitesa
+  {id:'fit-highpoint',name:'Fitesa High Point',company:'Fitesa',parent:'Fitesa S.A.',city:'High Point',state:'NC',country:'USA',lat:35.9557,lon:-79.9976,layer:'nonwoven',type:'SB/SMS/Carded',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunbond, SMS, carded',applications:'Hygiene, healthcare',contact:'',phone:'',email:'',notes:''},
+  {id:'fit-simpsonville',name:'Fitesa Simpsonville',company:'Fitesa',parent:'Fitesa S.A.',city:'Simpsonville',state:'SC',country:'USA',lat:34.7371,lon:-82.2543,layer:'nonwoven',type:'Spunmelt/MB',color:'#EC4899',shape:'diamond',status:'Active',capacity:'80,000+ MT/yr',products:'Spunmelt, meltblown',applications:'Hygiene, medical',contact:'',phone:'',email:'',notes:'Major expansions since 2011'},
+  {id:'fit-greenbay',name:'Fitesa Green Bay',company:'Fitesa',parent:'Fitesa S.A.',city:'Green Bay',state:'WI',country:'USA',lat:44.5133,lon:-88.0158,layer:'nonwoven',type:'Carded/Airlaid',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Carded, airlaid',applications:'Hygiene, wipes',contact:'',phone:'',email:'',notes:''},
+  {id:'fit-washougal',name:'Fitesa Washougal',company:'Fitesa',parent:'Fitesa S.A.',city:'Washougal',state:'WA',country:'USA',lat:45.5824,lon:-122.3537,layer:'nonwoven',type:'Spunbond',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunbond nonwovens',applications:'Hygiene, industrial',contact:'',phone:'',email:'',notes:'Pacific NW facility'},
+  {id:'fit-sanjose',name:'Fitesa San José Iturbide',company:'Fitesa',parent:'Fitesa S.A.',city:'San José Iturbide',state:'GTO',country:'Mexico',lat:21.0025,lon:-100.3897,layer:'nonwoven',type:'Spunmelt/Film',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunmelt, films, elastics',applications:'Hygiene',contact:'',phone:'',email:'',notes:'Mexico operations hub'},
+  // PFNonwovens
+  {id:'pfn-hazleton',name:'PFNonwovens Hazleton',company:'PFNonwovens',parent:'PFNonwovens a.s.',city:'Hazleton',state:'PA',country:'USA',lat:40.9584,lon:-75.9746,layer:'nonwoven',type:'Reicofil 5',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunmelt (Reicofil 5)',applications:'Hygiene, medical',contact:'',phone:'',email:'',notes:'NA center of excellence; multi-phase expansion'},
+  // K-C internal
+  {id:'kc-corinth',name:'K-C Corinth NW',company:'Kimberly-Clark',parent:'Kimberly-Clark Corp',city:'Corinth',state:'MS',country:'USA',lat:34.9342,lon:-88.5201,layer:'nonwoven',type:'Coform',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunbond, coform',applications:'Hygiene (internal)',contact:'',phone:'',email:'',notes:'Proprietary coform technology'},
+  {id:'kc-hendersonville',name:'K-C Hendersonville NW',company:'Kimberly-Clark',parent:'Kimberly-Clark Corp',city:'Hendersonville',state:'NC',country:'USA',lat:35.3187,lon:-82.4612,layer:'nonwoven',type:'SB/MB',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunbond, meltblown',applications:'Hygiene (internal)',contact:'',phone:'',email:'',notes:''},
+  {id:'kc-lagrange',name:'K-C LaGrange NW',company:'Kimberly-Clark',parent:'Kimberly-Clark Corp',city:'LaGrange',state:'GA',country:'USA',lat:33.0362,lon:-85.0322,layer:'nonwoven',type:'Nonwoven',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Nonwoven substrates',applications:'Hygiene (internal)',contact:'',phone:'',email:'',notes:''},
+  {id:'kc-maumelle',name:'K-C Maumelle NW',company:'Kimberly-Clark',parent:'Kimberly-Clark Corp',city:'Maumelle',state:'AR',country:'USA',lat:34.8668,lon:-92.4065,layer:'nonwoven',type:'Nonwoven',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Nonwoven substrates',applications:'Hygiene (internal)',contact:'',phone:'',email:'',notes:''},
+  // FQ / Suominen
+  {id:'fq-nw-hazleton',name:'FQ Nonwovens Hazleton',company:'First Quality',parent:'First Quality Enterprises',city:'Hazleton',state:'PA',country:'USA',lat:40.9484,lon:-75.9846,layer:'nonwoven',type:'Spunmelt',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Spunmelt nonwovens',applications:'Hygiene (internal + merchant)',contact:'',phone:'',email:'',notes:'Integrated with FQ hygiene'},
+  {id:'suom-gb',name:'Suominen Green Bay',company:'Suominen',parent:'Suominen Corp',city:'Green Bay',state:'WI',country:'USA',lat:44.5233,lon:-88.0258,layer:'nonwoven',type:'Wetlaid/Spunlace',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Wetlaid, spunlace',applications:'Wipes',contact:'',phone:'',email:'',notes:''},
+  {id:'suom-bethune',name:'Suominen Bethune',company:'Suominen',parent:'Suominen Corp',city:'Bethune',state:'SC',country:'USA',lat:34.1590,lon:-80.3481,layer:'nonwoven',type:'Wetlaid',color:'#EC4899',shape:'diamond',status:'Active',capacity:'',products:'Wetlaid nonwovens',applications:'Wipes substrates',contact:'',phone:'',email:'',notes:''},
+
+  // ===== HYGIENE MANUFACTURERS =====
+  // Baby Diapers
+  {id:'pg-capeg',name:'P&G Cape Girardeau',company:'Procter & Gamble',parent:'P&G',city:'Cape Girardeau',state:'MO',country:'USA',lat:37.3059,lon:-89.5181,layer:'hygiene',type:'Baby Diapers',color:'#EF4444',shape:'square',status:'Active',capacity:'',products:'Pampers, Luvs',applications:'Baby diapers',contact:'',phone:'',email:'',notes:''},
+  {id:'pg-mehoopany',name:'P&G Mehoopany',company:'Procter & Gamble',parent:'P&G',city:'Mehoopany',state:'PA',country:'USA',lat:41.5548,lon:-76.0755,layer:'hygiene',type:'Baby Diapers',color:'#EF4444',shape:'square',status:'Active',capacity:'',products:'Pampers',applications:'Baby diapers',contact:'',phone:'',email:'',notes:'Massive integrated facility'},
+  {id:'kc-paris',name:'K-C Paris',company:'Kimberly-Clark',parent:'Kimberly-Clark Corp',city:'Paris',state:'TX',country:'USA',lat:33.6609,lon:-95.5555,layer:'hygiene',type:'Baby Diapers',color:'#EF4444',shape:'square',status:'Active',capacity:'',products:'Huggies, Pull-Ups',applications:'Baby diapers, training pants',contact:'',phone:'',email:'',notes:''},
+  {id:'kc-ogden',name:'K-C Ogden',company:'Kimberly-Clark',parent:'Kimberly-Clark Corp',city:'Ogden',state:'UT',country:'USA',lat:41.2230,lon:-111.9738,layer:'hygiene',type:'Baby Diapers',color:'#EF4444',shape:'square',status:'Active',capacity:'',products:'Huggies',applications:'Baby diapers',contact:'',phone:'',email:'',notes:''},
+  {id:'fq-lewistown',name:'FQ Lewistown',company:'First Quality',parent:'First Quality Enterprises',city:'Lewistown',state:'PA',country:'USA',lat:40.5984,lon:-77.5714,layer:'hygiene',type:'Baby Diapers',color:'#EF4444',shape:'square',status:'Active',capacity:'',products:'Cuties',applications:'Baby diapers',contact:'',phone:'',email:'',notes:''},
+  {id:'dry-reidsville',name:'Drylock Reidsville',company:'Drylock Technologies',parent:'Drylock',city:'Reidsville',state:'NC',country:'USA',lat:36.3487,lon:-79.6614,layer:'hygiene',type:'Baby Diapers',color:'#EF4444',shape:'square',status:'Active',capacity:'',products:'Private label diapers',applications:'Baby diapers',contact:'',phone:'',email:'',notes:'Belgian company; US operations'},
+  {id:'ont-stokesdale',name:'Ontex Stokesdale',company:'Ontex',parent:'Ontex Group',city:'Stokesdale',state:'NC',country:'USA',lat:36.2379,lon:-80.0035,layer:'hygiene',type:'Baby Diapers',color:'#EF4444',shape:'square',status:'Active',capacity:'',products:'Private label diapers, training pants',applications:'Baby + adult',contact:'',phone:'',email:'',notes:'Also produces adult products'},
+  {id:'ont-tijuana',name:'Ontex Tijuana',company:'Ontex',parent:'Ontex Group',city:'Tijuana',state:'BCN',country:'Mexico',lat:32.5027,lon:-117.0037,layer:'hygiene',type:'Baby Diapers',color:'#EF4444',shape:'square',status:'Active',capacity:'',products:'Baby diapers, training pants',applications:'US/Mexico markets',contact:'',phone:'',email:'',notes:''},
+  // Adult Incontinence
+  {id:'ess-bowlinggreen',name:'Essity Bowling Green',company:'Essity (TENA)',parent:'Essity AB',city:'Bowling Green',state:'KY',country:'USA',lat:36.9685,lon:-86.4808,layer:'hygiene',type:'Adult Incontinence',color:'#F59E0B',shape:'square',status:'Active',capacity:'',products:'TENA',applications:'Adult incontinence',contact:'',phone:'',email:'',notes:'Global #1 adult incontinence brand'},
+  {id:'ess-drummondville',name:'Essity Drummondville',company:'Essity (TENA)',parent:'Essity AB',city:'Drummondville',state:'QC',country:'Canada',lat:45.8803,lon:-72.4843,layer:'hygiene',type:'Adult Incontinence',color:'#F59E0B',shape:'square',status:'Active',capacity:'',products:'TENA',applications:'Adult incontinence',contact:'',phone:'',email:'',notes:'Canadian operations'},
+  {id:'kc-foxcrossing',name:'K-C Fox Crossing',company:'Kimberly-Clark',parent:'Kimberly-Clark Corp',city:'Fox Crossing',state:'WI',country:'USA',lat:44.2019,lon:-88.4629,layer:'hygiene',type:'Adult Incontinence',color:'#F59E0B',shape:'square',status:'Active',capacity:'',products:'Depend, Poise',applications:'Adult incontinence',contact:'',phone:'',email:'',notes:''},
+  {id:'dry-eauclaire',name:'Drylock Eau Claire',company:'Drylock Technologies',parent:'Drylock',city:'Eau Claire',state:'WI',country:'USA',lat:44.8113,lon:-91.4985,layer:'hygiene',type:'Adult Incontinence',color:'#F59E0B',shape:'square',status:'Active',capacity:'',products:'Private label adult',applications:'Adult incontinence',contact:'',phone:'',email:'',notes:''},
+  {id:'med-lithia',name:'Medline Lithia Springs',company:'Medline Industries',parent:'Medline',city:'Lithia Springs',state:'GA',country:'USA',lat:33.7937,lon:-84.6602,layer:'hygiene',type:'Adult Incontinence',color:'#F59E0B',shape:'square',status:'Active',capacity:'',products:'FitRight',applications:'Adult incontinence',contact:'',phone:'',email:'',notes:'Largest private US medical supplier'},
+  // Adult + Baby
+  {id:'att-greenville',name:'Attindas Greenville',company:'Attindas Hygiene',parent:'Attindas',city:'Greenville',state:'NC',country:'USA',lat:35.6127,lon:-77.3664,layer:'hygiene',type:'Adult+Baby',color:'#8B5CF6',shape:'square',status:'Active',capacity:'',products:'Attends adult, baby products',applications:'Adult + baby',contact:'',phone:'',email:'',notes:'Pioneered disposable adult briefs 1980'},
+  {id:'att-delaware',name:'Attindas Delaware',company:'Attindas Hygiene',parent:'Attindas',city:'Delaware',state:'OH',country:'USA',lat:40.2987,lon:-83.0680,layer:'hygiene',type:'Adult+Baby',color:'#8B5CF6',shape:'square',status:'Active',capacity:'',products:'Attends adult, baby products',applications:'Adult + baby',contact:'',phone:'',email:'',notes:''},
+  {id:'fq-macon',name:'FQ Macon',company:'First Quality',parent:'First Quality Enterprises',city:'Macon',state:'GA',country:'USA',lat:32.8407,lon:-83.6324,layer:'hygiene',type:'Adult+Baby',color:'#8B5CF6',shape:'square',status:'Active',capacity:'',products:'Prevail adult, Cuties baby',applications:'Adult + baby',contact:'',phone:'',email:'',notes:''},
+  {id:'fq-mcelhattan',name:'FQ McElhattan',company:'First Quality',parent:'First Quality Enterprises',city:'McElhattan',state:'PA',country:'USA',lat:41.1137,lon:-77.3652,layer:'hygiene',type:'Adult+Baby',color:'#8B5CF6',shape:'square',status:'Active',capacity:'',products:'Prevail, Cuties',applications:'Adult + baby',contact:'',phone:'',email:'',notes:''},
+  // Wipes
+  {id:'np-orangeburg',name:'Nice-Pak Orangeburg',company:'Nice-Pak Products',parent:'Vivos Holdings / Emprise Group (ESOP)',city:'Orangeburg',state:'NY',country:'USA',lat:41.0465,lon:-73.9499,layer:'hygiene',type:'Wipes',color:'#06B6D4',shape:'square',status:'Active',capacity:'',products:'Wet wipes, Wet-Nap, Nice N Clean',applications:'Consumer, foodservice, institutional',contact:'',phone:'',email:'',notes:'Original Nice-Pak site (founded 1957); legacy HQ now St. Louis; Vivos acquired Nice-Pak Aug 2025; integrated under Nice-Pak Products brand Jan 2026'},
+  {id:'np-mooresville',name:'Nice-Pak Mooresville',company:'Nice-Pak Products',parent:'Vivos Holdings / Emprise Group (ESOP)',city:'Mooresville',state:'IN',country:'USA',lat:39.6120,lon:-86.3686,layer:'hygiene',type:'Wipes',color:'#06B6D4',shape:'square',status:'Active',capacity:'',products:'Wet wipes',applications:'Consumer, institutional',contact:'',phone:'317-831-6800',email:'',notes:'One Nice-Pak Road; Vivos/Nice-Pak combined entity Jan 2026'},
+  {id:'np-jonesboro',name:'Nice-Pak Jonesboro',company:'Nice-Pak Products',parent:'Vivos Holdings / Emprise Group (ESOP)',city:'Jonesboro',state:'AR',country:'USA',lat:35.8423,lon:-90.7043,layer:'hygiene',type:'Wipes',color:'#06B6D4',shape:'square',status:'Active',capacity:'',products:'Wet wipes',applications:'Consumer, institutional',contact:'',phone:'870-935-6423',email:'',notes:'One Nice-Pak Road; Vivos/Nice-Pak combined entity Jan 2026'},
+  {id:'np-stlouis',name:'Nice-Pak St. Louis',company:'Nice-Pak Products',parent:'Vivos Holdings / Emprise Group (ESOP)',city:'St. Louis',state:'MO',country:'USA',lat:38.7003,lon:-90.3251,layer:'hygiene',type:'Wipes',color:'#06B6D4',shape:'square',status:'Active',capacity:'',products:'Wipes, liquid-fill personal care, household products',applications:'Private brand, contract mfg, consumer',contact:'',phone:'314-592-1400',email:'',notes:'8515 Page Ave; ex-Consumer Product Partners (Vi-Jon); HQ + manufacturing; integrated into Nice-Pak Products Jan 2026'},
+  {id:'np-smyrna',name:'Nice-Pak Smyrna',company:'Nice-Pak Products',parent:'Vivos Holdings / Emprise Group (ESOP)',city:'Smyrna',state:'TN',country:'USA',lat:35.9826,lon:-86.5186,layer:'hygiene',type:'Wipes',color:'#06B6D4',shape:'square',status:'Active',capacity:'',products:'Wipes, liquid-fill personal care, household products',applications:'Private brand, contract mfg, consumer',contact:'',phone:'',email:'',notes:'One Swan Drive; ex-Consumer Product Partners (Nashville metro); integrated into Nice-Pak Products Jan 2026'},
+  {id:'np-grandrapids',name:'Nice-Pak Grand Rapids',company:'Nice-Pak Products',parent:'Vivos Holdings / Emprise Group (ESOP)',city:'Grand Rapids',state:'MI',country:'USA',lat:42.8884,lon:-85.5879,layer:'hygiene',type:'Wipes',color:'#06B6D4',shape:'square',status:'Active',capacity:'',products:'Personal care contract manufacturing',applications:'Personal care, OTC liquids, lotions, creams, gels',contact:'',phone:'',email:'',notes:'4560 Danvers Dr SE; likely ex-Surefil contract mfg; integrated into Nice-Pak Products Jan 2026'},
+  {id:'rl-sheboygan',name:'Rockline Sheboygan',company:'Rockline Industries',parent:'Rockline',city:'Sheboygan',state:'WI',country:'USA',lat:43.7508,lon:-87.7145,layer:'hygiene',type:'Wipes',color:'#06B6D4',shape:'square',status:'Active',capacity:'',products:'Wet wipes',applications:'Consumer, private label',contact:'',phone:'',email:'',notes:'HQ; largest private label wipes maker'},
+  {id:'rl-springdale',name:'Rockline Springdale',company:'Rockline Industries',parent:'Rockline',city:'Springdale',state:'AR',country:'USA',lat:36.1867,lon:-94.1288,layer:'hygiene',type:'Wipes',color:'#06B6D4',shape:'square',status:'Active',capacity:'',products:'Wet wipes',applications:'Consumer',contact:'',phone:'',email:'',notes:''},
+  {id:'rl-booneville',name:'Rockline Booneville',company:'Rockline Industries',parent:'Rockline',city:'Booneville',state:'AR',country:'USA',lat:35.1401,lon:-93.9217,layer:'hygiene',type:'Wipes',color:'#06B6D4',shape:'square',status:'Active',capacity:'',products:'Wet wipes',applications:'Consumer',contact:'',phone:'',email:'',notes:''},
+  {id:'rl-russellville',name:'Rockline Russellville',company:'Rockline Industries',parent:'Rockline',city:'Russellville',state:'AR',country:'USA',lat:35.2784,lon:-93.1338,layer:'hygiene',type:'Wipes',color:'#06B6D4',shape:'square',status:'Active',capacity:'',products:'Wet wipes',applications:'Consumer',contact:'',phone:'',email:'',notes:''},
+  {id:'pg-dover',name:'P&G Dover',company:'Procter & Gamble',parent:'P&G',city:'Dover',state:'DE',country:'USA',lat:39.1582,lon:-75.5244,layer:'hygiene',type:'Wipes',color:'#06B6D4',shape:'square',status:'Active',capacity:'',products:'Pampers wipes',applications:'Baby wipes',contact:'',phone:'',email:'',notes:''},
+  // Full Portfolio
+  {id:'kc-beechisland',name:'K-C Beech Island',company:'Kimberly-Clark',parent:'Kimberly-Clark Corp',city:'Beech Island',state:'SC',country:'USA',lat:33.5063,lon:-81.8707,layer:'hygiene',type:'Full Portfolio',color:'#D946EF',shape:'square',status:'Active',capacity:'',products:'Huggies, Pull-Ups, wipes, Depend, Poise',applications:'Full portfolio',contact:'',phone:'',email:'',notes:'Flagship hygiene facility'},
+  {id:'kc-warren',name:'K-C Warren',company:'Kimberly-Clark',parent:'Kimberly-Clark Corp',city:'Warren',state:'OH',country:'USA',lat:41.2376,lon:-80.8184,layer:'hygiene',type:'Full Portfolio',color:'#D946EF',shape:'square',status:'Under Construction',capacity:'',products:'Huggies (planned)',applications:'Full portfolio',contact:'',phone:'',email:'',notes:'$800M investment; opening 2025'},
+  {id:'kcm-ramos',name:'KCM Ramos Arizpe',company:'Kimberly-Clark de México',parent:'KCM',city:'Ramos Arizpe',state:'Coahuila',country:'Mexico',lat:25.5389,lon:-100.9517,layer:'hygiene',type:'Full Portfolio',color:'#D946EF',shape:'square',status:'Active',capacity:'',products:'Huggies, KleenBebé',applications:'Baby diapers, tissue',contact:'',phone:'',email:'',notes:'Opened 1993'},
+  {id:'kcm-tlaxcala',name:'KCM Tlaxcala',company:'Kimberly-Clark de México',parent:'KCM',city:'Tlaxcala',state:'Tlaxcala',country:'Mexico',lat:19.3183,lon:-98.2375,layer:'hygiene',type:'Full Portfolio',color:'#D946EF',shape:'square',status:'Active',capacity:'',products:'Disposable diapers, nonwovens',applications:'Baby diapers, nonwovens',contact:'',phone:'',email:'',notes:'Opened 1995'},
+  {id:'kcm-naucalpan',name:'KCM Naucalpan',company:'Kimberly-Clark de México',parent:'KCM',city:'Naucalpan',state:'Estado de México',country:'Mexico',lat:19.4753,lon:-99.2397,layer:'hygiene',type:'Full Portfolio',color:'#D946EF',shape:'square',status:'Active',capacity:'',products:'Multiple KCM products',applications:'Full portfolio',contact:'',phone:'',email:'',notes:'Original La Aurora mill 1925'},
+  {id:'kcm-orizaba',name:'KCM Orizaba',company:'Kimberly-Clark de México',parent:'KCM',city:'Orizaba',state:'Veracruz',country:'Mexico',lat:18.8504,lon:-97.1000,layer:'hygiene',type:'Full Portfolio',color:'#D946EF',shape:'square',status:'Active',capacity:'',products:'Pulp, paper, hygiene',applications:'Full portfolio',contact:'',phone:'',email:'',notes:'Opened 1968; sugarcane bagasse pulp'},
+  {id:'kcm-ecatepec',name:'KCM Ecatepec',company:'Kimberly-Clark de México',parent:'KCM',city:'Ecatepec',state:'Estado de México',country:'Mexico',lat:19.6017,lon:-99.0500,layer:'hygiene',type:'Full Portfolio',color:'#D946EF',shape:'square',status:'Active',capacity:'',products:'Consumer products',applications:'Full portfolio',contact:'',phone:'',email:'',notes:'Ex-Scott Paper (1996)'},
+  {id:'kcm-tlalnepantla',name:'KCM Tlalnepantla',company:'Kimberly-Clark de México',parent:'KCM',city:'Tlalnepantla',state:'Estado de México',country:'Mexico',lat:19.5370,lon:-99.2040,layer:'hygiene',type:'Full Portfolio',color:'#D946EF',shape:'square',status:'Active',capacity:'',products:'Consumer products',applications:'Full portfolio',contact:'',phone:'',email:'',notes:'Since 1977'},
+];
+
+// ===== IN-MEMORY STATE =====
+var actionState = {};
+var markers = {};
+var currentTab = 'all';
+var selectedId = null;
+var statusFilter = 'all'; // 'all', 'open', 'done'
+
+// Type filter config — groups with match functions
+var typeConfig = [
+  // Cellulose subtypes
+  {key:'fluff', label:'Fluff Pulp', color:'#22C55E', match: function(f){return f.type==='Fluff Pulp';}},
+  {key:'specialty', label:'Specialty/Dissolving', color:'#F97316', match: function(f){return f.type==='Specialty';}},
+  {key:'nbsk', label:'NBSK', color:'#3B82F6', match: function(f){return f.type==='NBSK';}},
+  {key:'bctmp', label:'BCTMP', color:'#A855F7', match: function(f){return f.type==='BCTMP';}},
+  {key:'papergrade', label:'Papergrade', color:'#64748B', match: function(f){return f.type==='Papergrade';}},
+  {key:'closed', label:'Closed/Idled', color:'#6B7280', match: function(f){return f.type==='Closed';}},
+  // Nonwoven — single toggle for all NW tech types
+  {key:'nonwoven', label:'Nonwoven Converters', color:'#EC4899', match: function(f){return f.layer==='nonwoven';}},
+  // Hygiene subtypes
+  {key:'baby', label:'Baby Diapers', color:'#EF4444', match: function(f){return f.type==='Baby Diapers';}},
+  {key:'adult', label:'Adult Incontinence', color:'#F59E0B', match: function(f){return f.type==='Adult Incontinence';}},
+  {key:'adultbaby', label:'Adult+Baby', color:'#8B5CF6', match: function(f){return f.type==='Adult+Baby';}},
+  {key:'wipes', label:'Wipes', color:'#06B6D4', match: function(f){return f.type==='Wipes';}},
+  {key:'full', label:'Full Portfolio', color:'#D946EF', match: function(f){return f.type==='Full Portfolio';}},
+];
+var typeVisible = {};
+
+// For a facility, find its matching config key
+function getConfigKey(f) {
+  for (var i = 0; i < typeConfig.length; i++) {
+    if (typeConfig[i].match(f)) return typeConfig[i].key;
+  }
+  return null;
+}
+// Is facility's type currently visible?
+function isTypeVisible(f) {
+  var k = getConfigKey(f);
+  if (k === null) return true; // unmatched types always visible
+  return typeVisible[k] !== false;
+}
+
+// ===== BUILD FILTER CHIPS =====
+function buildChips() {
+  var row = document.getElementById('chipRow');
+  typeConfig.forEach(function(tc) {
+    // Check if any facility matches this filter
+    var exists = facilities.some(function(f) { return tc.match(f); });
+    if (!exists) return;
+    typeVisible[tc.key] = true;
+    var chip = document.createElement('span');
+    chip.className = 'chip on';
+    chip.dataset.type = tc.key;
+    chip.style.borderColor = tc.color;
+    chip.style.background = tc.color + '15';
+    chip.style.color = tc.color;
+    chip.innerHTML = '<span class="cdot" style="background:' + tc.color + '"></span>' + tc.label;
+    chip.onclick = function() { toggleType(tc.key, chip, tc.color); };
+    row.appendChild(chip);
+  });
+}
+
+function toggleType(key, chipEl, color) {
+  typeVisible[key] = !typeVisible[key];
+  if (typeVisible[key]) {
+    chipEl.className = 'chip on';
+    chipEl.style.background = color + '15';
+  } else {
+    chipEl.className = 'chip off';
+    chipEl.style.background = 'transparent';
+  }
+  // Find the matching config
+  var tc = typeConfig.find(function(t) { return t.key === key; });
+  // Toggle map markers for matching facilities
+  facilities.forEach(function(f) {
+    if (tc && tc.match(f) && markers[f.id]) {
+      if (typeVisible[key]) {
+        if (!map.hasLayer(markers[f.id])) map.addLayer(markers[f.id]);
+      } else {
+        if (map.hasLayer(markers[f.id])) map.removeLayer(markers[f.id]);
+      }
+    }
+  });
+  renderList();
+}
+
+// ===== STATUS FILTER =====
+function setStatusFilter(mode, btn) {
+  statusFilter = mode;
+  document.querySelectorAll('.st-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  renderList();
+}
+
+// ===== BUILD MAP MARKERS =====
+function buildTooltip(f) {
+  var st = actionState[f.id] || {};
+  var status = st.completed ? '<span style="color:#4ADE80">✅ COMPLETE</span>' : '<span style="color:' + (f.status==='Active'?'#4ADE80':'#9CA3AF') + '">' + f.status + '</span>';
+  var html = '<div style="max-width:280px;font-family:DM Sans,sans-serif;line-height:1.45">' +
+    '<div style="font-size:13px;font-weight:700;margin-bottom:3px;color:#F1F5F9">' + f.name + '</div>' +
+    '<div style="font-size:11px;color:#94A3B8;margin-bottom:6px">' + f.company + (f.parent && f.parent !== f.company ? ' · ' + f.parent : '') + '</div>' +
+    '<div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap">' +
+      '<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:600;background:' + f.color + '22;color:' + f.color + '">' + f.type + '</span>' +
+      '<span style="padding:2px 7px;border-radius:8px;font-size:10px;font-weight:600;background:#1E293B;color:#94A3B8">' + f.layer.charAt(0).toUpperCase() + f.layer.slice(1) + '</span>' +
+      status +
+    '</div>' +
+    '<div style="font-size:11px;color:#CBD5E1;margin-bottom:2px"><b style="color:#7DD3FC">📍</b> ' + f.city + ', ' + f.state + ', ' + f.country + '</div>';
+  if (f.capacity) html += '<div style="font-size:11px;color:#CBD5E1;margin-bottom:2px"><b style="color:#7DD3FC">⚡</b> ' + f.capacity + '</div>';
+  if (f.products) html += '<div style="font-size:11px;color:#CBD5E1;margin-bottom:2px"><b style="color:#7DD3FC">📦</b> ' + f.products + '</div>';
+  if (f.applications) html += '<div style="font-size:11px;color:#CBD5E1;margin-bottom:2px"><b style="color:#7DD3FC">🎯</b> ' + f.applications + '</div>';
+  var notes = (st.userNotes || f.notes || '');
+  if (notes) html += '<div style="font-size:10px;color:#64748B;margin-top:4px;border-top:1px solid #1E293B;padding-top:4px;font-style:italic">' + notes.substring(0,150) + (notes.length > 150 ? '…' : '') + '</div>';
+  if (st.owner) html += '<div style="font-size:10px;color:#F59E0B;margin-top:3px">👤 ' + st.owner + '</div>';
+  html += '</div>';
+  return html;
+}
+
+facilities.forEach(function(f) {
+  var m;
+  var sz = f.layer === 'cellulose' ? (f.type === 'Fluff Pulp' ? 8 : f.type === 'Specialty' ? 7 : 6) : 7;
+  var opacity = (f.status.includes('CLOSE') || f.status.includes('Idle')) ? 0.45 : 0.85;
+
+  if (f.shape === 'circle') {
+    m = L.circleMarker([f.lat, f.lon], {radius: sz, fillColor: f.color, color: '#fff', weight: 1.5, opacity: 1, fillOpacity: opacity});
+  } else {
+    var isSquare = f.shape === 'square';
+    var html = '<div style="width:' + (sz*2) + 'px;height:' + (sz*2) + 'px;background:' + f.color + ';' +
+      (isSquare ? 'border-radius:2px;' : 'transform:rotate(45deg);border-radius:2px;') +
+      'border:2px solid rgba(255,255,255,0.5);opacity:' + opacity + '"></div>';
+    m = L.marker([f.lat, f.lon], {icon: L.divIcon({className:'', html: html, iconSize: [sz*2, sz*2], iconAnchor: [sz, sz]})});
+  }
+  m.bindTooltip(buildTooltip(f), {direction:'top', offset:[0,-8], className:'custom-tooltip', sticky: false});
+  m.on('click', function() { selectFacility(f.id); });
+  m.addTo(map);
+  markers[f.id] = m;
+});
+
+// ===== RENDER LIST =====
+function renderList() {
+  var wrap = document.getElementById('listWrap');
+  var q = document.getElementById('searchInput').value.toLowerCase();
+  var filtered = facilities.filter(function(f) {
+    // Layer tab
+    if (currentTab !== 'all' && f.layer !== currentTab) return false;
+    // Type chip filter
+    if (!isTypeVisible(f)) return false;
+    // Status filter
+    if (statusFilter === 'open') {
+      var st = actionState[f.id];
+      if (st && st.completed) return false;
+    } else if (statusFilter === 'done') {
+      var st2 = actionState[f.id];
+      if (!st2 || !st2.completed) return false;
+    }
+    // Search
+    if (q && !(f.name.toLowerCase().includes(q) || f.company.toLowerCase().includes(q) || f.city.toLowerCase().includes(q) || f.state.toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  var html = '';
+  filtered.forEach(function(f) {
+    var st = actionState[f.id] || {};
+    var cls = 'facility-card' + (st.completed ? ' completed' : '') + (selectedId === f.id ? ' selected' : '');
+    var shapeClass = f.shape === 'diamond' ? ' diamond' : f.shape === 'square' ? ' square' : '';
+    html += '<div class="' + cls + '" data-id="' + f.id + '" onclick="selectFacility(\'' + f.id + '\')">' +
+      '<div class="fc-check">✅</div>' +
+      '<div class="fc-top">' +
+      '<div class="fc-dot' + shapeClass + '" style="background:' + f.color + '"></div>' +
+      '<div class="fc-info">' +
+      '<div class="fc-name">' + f.name + '</div>' +
+      '<div class="fc-company">' + f.company + (f.parent && f.parent !== f.company ? ' · ' + f.parent : '') + '</div>' +
+      '<div class="fc-city">' + f.city + ', ' + f.state + ' ' + f.country + '</div>' +
+      '</div></div></div>';
+  });
+  wrap.innerHTML = html || '<div style="text-align:center;padding:40px;color:var(--text-muted)">No facilities match current filters</div>';
+  updateProgress();
+}
+
+// ===== SELECT FACILITY =====
+function selectFacility(id) {
+  selectedId = id;
+  var f = facilities.find(function(x) { return x.id === id; });
+  if (!f) return;
+
+  map.flyTo([f.lat, f.lon], 8, {duration: 0.8});
+
+  // Highlight in list
+  document.querySelectorAll('.facility-card').forEach(function(el) { el.classList.remove('selected'); });
+  var card = document.querySelector('.facility-card[data-id="' + id + '"]');
+  if (card) card.classList.add('selected');
+
+  // Build compact detail panel
+  var st = actionState[id] || {};
+  var dp = document.getElementById('dpBody');
+  var loc = f.city + ', ' + f.state + ', ' + f.country;
+
+  dp.innerHTML =
+    '<div class="dp-grid">' +
+      '<div class="dp-field"><div class="dp-label">Company</div><div class="dp-value">' + f.company + '</div></div>' +
+      '<div class="dp-field"><div class="dp-label">Parent / Owner</div><div class="dp-value">' + (f.parent || '—') + '</div></div>' +
+      '<div class="dp-field"><div class="dp-label">Location</div><div class="dp-value">' + loc + '</div></div>' +
+      '<div class="dp-field"><div class="dp-label">Coordinates</div><div class="dp-value" style="font-family:JetBrains Mono,monospace;font-size:10px">' + f.lat.toFixed(4) + ', ' + f.lon.toFixed(4) + '</div></div>' +
+      '<div class="dp-field"><div class="dp-label">Type / Status</div><div class="dp-value"><span class="dp-tag" style="background:' + f.color + '22;color:' + f.color + '">' + f.type + '</span><span class="dp-tag" style="background:' + (f.status==='Active'?'#22C55E22':'#6B728022') + ';color:' + (f.status==='Active'?'#4ADE80':'#9CA3AF') + '">' + f.status + '</span></div></div>' +
+      '<div class="dp-field"><div class="dp-label">Capacity</div><div class="dp-value">' + (f.capacity || '—') + '</div></div>' +
+    '</div>' +
+    '<div class="dp-grid full">' +
+      '<div class="dp-field"><div class="dp-label">Products</div><div class="dp-value">' + (f.products || '—') + '</div></div>' +
+      '<div class="dp-field"><div class="dp-label">Applications</div><div class="dp-value">' + (f.applications || '—') + '</div></div>' +
+    '</div>' +
+
+    '<div class="dp-section">' +
+      '<div class="dp-section-title">📇 Contact</div>' +
+      '<div class="dp-input-row">' +
+        '<input class="dp-input" id="dpContact" placeholder="Contact name" value="' + esc(f.contact) + '">' +
+        '<input class="dp-input" id="dpPhone" placeholder="Phone" value="' + esc(f.phone) + '">' +
+      '</div>' +
+      '<input class="dp-input" id="dpEmail" placeholder="Email" value="' + esc(f.email) + '" style="margin-bottom:0">' +
+    '</div>' +
+
+    '<div class="dp-section">' +
+      '<div class="dp-section-title">📋 Action Plan</div>' +
+      '<input class="dp-input" id="dpOwner" placeholder="Assigned owner" value="' + esc(st.owner || '') + '" style="margin-bottom:6px">' +
+      '<textarea class="dp-input" id="dpNotes" placeholder="Notes, action items, follow-ups...">' + esc(st.userNotes || f.notes || '') + '</textarea>' +
+      '<div class="dp-actions">' +
+        '<button class="btn btn-complete' + (st.completed ? ' is-complete' : '') + '" id="btnComplete" onclick="toggleComplete(\'' + id + '\')">' + (st.completed ? '↩ Reopen' : '✓ Complete') + '</button>' +
+        '<button class="btn btn-save" onclick="saveDetail(\'' + id + '\')">💾 Save</button>' +
+        '<button class="btn btn-flyto" onclick="map.flyTo([' + f.lat + ',' + f.lon + '],12,{duration:0.8})">📍</button>' +
+      '</div>' +
+    '</div>';
+
+  document.getElementById('dpTitle').textContent = f.name;
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('listWrap').classList.add('hidden');
+}
+
+function esc(s) { return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+// ===== SAVE =====
+function saveDetail(id) {
+  if (!actionState[id]) actionState[id] = {};
+  actionState[id].owner = document.getElementById('dpOwner').value;
+  actionState[id].userNotes = document.getElementById('dpNotes').value;
+
+  // Also save contact info back to facility
+  var f = facilities.find(function(x) { return x.id === id; });
+  if (f) {
+    f.contact = document.getElementById('dpContact').value;
+    f.phone = document.getElementById('dpPhone').value;
+    f.email = document.getElementById('dpEmail').value;
+  }
+
+  // Flash save confirmation
+  var btn = document.querySelector('.btn-save');
+  btn.textContent = '✓ Saved!';
+  btn.style.background = '#059669';
+  setTimeout(function() { btn.textContent = '💾 Save'; btn.style.background = ''; }, 1200);
+  // Refresh tooltip
+  if (markers[id]) markers[id].setTooltipContent(buildTooltip(f));
+  renderList();
+}
+
+// ===== TOGGLE COMPLETE =====
+function toggleComplete(id) {
+  if (!actionState[id]) actionState[id] = {};
+  actionState[id].completed = !actionState[id].completed;
+  actionState[id].owner = document.getElementById('dpOwner').value;
+  actionState[id].userNotes = document.getElementById('dpNotes').value;
+  // Update button inline
+  var btn = document.getElementById('btnComplete');
+  if (actionState[id].completed) {
+    btn.textContent = '↩ Reopen';
+    btn.classList.add('is-complete');
+  } else {
+    btn.textContent = '✓ Complete';
+    btn.classList.remove('is-complete');
+  }
+  // Refresh tooltip
+  var f = facilities.find(function(x) { return x.id === id; });
+  if (f && markers[id]) markers[id].setTooltipContent(buildTooltip(f));
+  updateProgress();
+}
+
+// ===== PROGRESS =====
+function updateProgress() {
+  var total = facilities.length;
+  var done = 0;
+  for (var k in actionState) { if (actionState[k].completed) done++; }
+  var pct = total ? Math.round(done / total * 100) : 0;
+  document.getElementById('progressPct').textContent = done + '/' + total + ' (' + pct + '%)';
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+// ===== CLOSE DETAIL =====
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('listWrap').classList.remove('hidden');
+  selectedId = null;
+  document.querySelectorAll('.facility-card').forEach(function(el) { el.classList.remove('selected'); });
+}
+
+// ===== FILTER / TABS =====
+function filterList() { renderList(); }
+function switchTab(layer, el) {
+  currentTab = layer;
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('listWrap').classList.remove('hidden');
+  selectedId = null;
+  renderList();
+}
+
+// ===== SIDEBAR TOGGLE =====
+function toggleSidebar() {
+  var sb = document.getElementById('sidebar');
+  var btn = document.getElementById('sidebarToggle');
+  sb.classList.toggle('collapsed');
+  btn.classList.toggle('collapsed');
+  btn.textContent = sb.classList.contains('collapsed') ? '▶' : '◀';
+  btn.style.right = sb.classList.contains('collapsed') ? '0' : '420px';
+  setTimeout(function() { map.invalidateSize(); }, 350);
+}
+
+// ===== EXCEL EXPORT =====
+function exportExcel() {
+  var rows = [['Facility Name','Company','Parent/Owner','City','State/Province','Country','Lat','Lon','Value Chain Layer','Type','Status','Capacity','Products','Applications','Contact Name','Phone','Email','Action Owner','Action Notes','Completed']];
+  facilities.forEach(function(f) {
+    var st = actionState[f.id] || {};
+    rows.push([
+      f.name, f.company, f.parent || '', f.city, f.state, f.country,
+      f.lat, f.lon, f.layer, f.type, f.status, f.capacity || '',
+      f.products || '', f.applications || '',
+      f.contact || '', f.phone || '', f.email || '',
+      st.owner || '', st.userNotes || f.notes || '',
+      st.completed ? 'YES' : ''
+    ]);
+  });
+
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Column widths
+  ws['!cols'] = [
+    {wch:28},{wch:22},{wch:24},{wch:16},{wch:8},{wch:7},
+    {wch:10},{wch:10},{wch:12},{wch:18},{wch:12},{wch:14},
+    {wch:30},{wch:28},
+    {wch:18},{wch:14},{wch:22},
+    {wch:18},{wch:40},{wch:10}
+  ];
+
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Value Chain Action Plan');
+
+  // Summary sheet
+  var summRows = [['Category','Count','Completed','Remaining']];
+  var cats = {};
+  facilities.forEach(function(f) {
+    var key = f.layer + ' - ' + f.type;
+    if (!cats[key]) cats[key] = {total:0, done:0};
+    cats[key].total++;
+    if (actionState[f.id] && actionState[f.id].completed) cats[key].done++;
+  });
+  Object.keys(cats).sort().forEach(function(k) {
+    summRows.push([k, cats[k].total, cats[k].done, cats[k].total - cats[k].done]);
+  });
+  var totalDone = 0;
+  for (var sid in actionState) { if (actionState[sid].completed) totalDone++; }
+  summRows.push([]);
+  summRows.push(['TOTAL', facilities.length, totalDone, facilities.length - totalDone]);
+
+  var ws2 = XLSX.utils.aoa_to_sheet(summRows);
+  ws2['!cols'] = [{wch:30},{wch:10},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
+
+  XLSX.writeFile(wb, 'NA_ValueChain_ActionPlan.xlsx');
+
+  // Flash button
+  var btn = document.querySelector('.btn-export');
+  var orig = btn.innerHTML;
+  btn.innerHTML = '✓ Downloaded!';
+  btn.style.background = 'var(--accent-green)';
+  btn.style.color = '#fff';
+  setTimeout(function() { btn.innerHTML = orig; btn.style.background = ''; btn.style.color = ''; }, 1500);
+}
+
+// ===== INIT =====
+buildChips();
+renderList();
+</script>
+</body></html>
