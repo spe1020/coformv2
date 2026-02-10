@@ -254,6 +254,44 @@ textarea.dp-input { min-height: 48px; }
 
 /* NEUTRAL LOCATION MARKER */
 .neutral-marker { border: 2px dashed rgba(6,182,212,.6) !important; opacity: .7; }
+
+/* FULLSCREEN DETAIL OVERLAY */
+.fs-overlay { display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.7); backdrop-filter: blur(6px); align-items: center; justify-content: center; padding: 24px; }
+.fs-overlay.open { display: flex; }
+.fs-panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 24px 80px rgba(0,0,0,.6); width: 720px; max-width: 100%; max-height: calc(100vh - 48px); display: flex; flex-direction: column; overflow: hidden; animation: fsSlideIn .25s ease; }
+@keyframes fsSlideIn { from { opacity: 0; transform: scale(.95) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.fs-header { display: flex; align-items: center; gap: 12px; padding: 16px 20px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.fs-header-info { flex: 1; min-width: 0; }
+.fs-title { font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fs-subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.fs-close { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; transition: all .15s; }
+.fs-close:hover { background: var(--accent-red); color: #fff; border-color: var(--accent-red); }
+.fs-body { padding: 20px; overflow-y: auto; flex: 1; }
+.fs-body::-webkit-scrollbar { width: 6px; }
+.fs-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.fs-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+.fs-grid.two { grid-template-columns: 1fr 1fr; }
+.fs-field { }
+.fs-label { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; }
+.fs-value { font-size: 13px; color: var(--text-primary); line-height: 1.4; }
+.fs-divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+.fs-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-blue); margin-bottom: 12px; }
+.fs-input { width: 100%; padding: 10px 14px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none; transition: border .2s; }
+.fs-input:focus { border-color: var(--accent-blue); }
+.fs-input::placeholder { color: var(--text-muted); }
+textarea.fs-input { min-height: 120px; resize: vertical; line-height: 1.5; }
+.fs-input-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.fs-input-row.two { grid-template-columns: 1fr 1fr; }
+.fs-input-field { display: flex; flex-direction: column; gap: 4px; }
+.fs-input-field label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); font-weight: 600; }
+.fs-actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.fs-actions .btn { padding: 10px 18px; font-size: 13px; }
+.fs-status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+@media (max-width: 760px) {
+  .fs-panel { width: 100%; border-radius: 10px; }
+  .fs-grid { grid-template-columns: 1fr 1fr; }
+  .fs-input-row { grid-template-columns: 1fr; }
+}
 </style></head><body>
 <div class="login-overlay" id="loginOverlay">
   <div class="login-box">
@@ -320,6 +358,7 @@ textarea.dp-input { min-height: 48px; }
     <div class="detail-panel" id="detailPanel">
       <div class="dp-header">
         <div class="dp-title" id="dpTitle">Facility Detail</div>
+        <button class="dp-close" onclick="openFsOverlay()" title="Expand to full view" style="font-size:14px;margin-right:2px">⛶</button>
         <button class="dp-close" onclick="closeDetail()">✕</button>
       </div>
       <div class="dp-body" id="dpBody"></div>
@@ -465,6 +504,20 @@ textarea.dp-input { min-height: 48px; }
   <div class="ml-row"><div class="ml-square" style="background:var(--accent-cyan)"></div>Wipes</div>
   <div class="ml-row"><div class="ml-square" style="background:var(--accent-fuchsia)"></div>Full Portfolio</div>
   <div class="ml-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px"><div class="ml-dot" style="background:var(--accent-cyan);border:2px dashed rgba(6,182,212,.6);width:10px;height:10px"></div>Custom (no coords)</div>
+</div>
+
+<!-- FULLSCREEN DETAIL OVERLAY -->
+<div class="fs-overlay" id="fsOverlay" onclick="if(event.target===this)closeFsOverlay()">
+  <div class="fs-panel">
+    <div class="fs-header">
+      <div class="fs-header-info">
+        <div class="fs-title" id="fsTitle"></div>
+        <div class="fs-subtitle" id="fsSubtitle"></div>
+      </div>
+      <button class="fs-close" onclick="closeFsOverlay()">✕</button>
+    </div>
+    <div class="fs-body" id="fsBody"></div>
+  </div>
 </div>
 
 <script>
@@ -1285,6 +1338,178 @@ function closeDetail() {
   selectedId = null;
   document.querySelectorAll('.facility-card').forEach(function(el) { el.classList.remove('selected'); });
 }
+
+// ===== FULLSCREEN OVERLAY =====
+var fsCurrentId = null;
+
+function openFsOverlay() {
+  if (!selectedId) return;
+  fsCurrentId = selectedId;
+  var f = facilities.find(function(x) { return x.id === fsCurrentId; });
+  if (!f) return;
+
+  // Sync sidebar fields into state before opening overlay
+  var dpOwner = document.getElementById('dpOwner');
+  var dpNotes = document.getElementById('dpNotes');
+  var dpContact = document.getElementById('dpContact');
+  var dpPhone = document.getElementById('dpPhone');
+  var dpEmail = document.getElementById('dpEmail');
+  if (dpOwner) { if (!actionState[fsCurrentId]) actionState[fsCurrentId] = {}; actionState[fsCurrentId].owner = dpOwner.value; }
+  if (dpNotes) { if (!actionState[fsCurrentId]) actionState[fsCurrentId] = {}; actionState[fsCurrentId].userNotes = dpNotes.value; }
+  if (dpContact) f.contact = dpContact.value;
+  if (dpPhone) f.phone = dpPhone.value;
+  if (dpEmail) f.email = dpEmail.value;
+
+  var st = actionState[fsCurrentId] || {};
+  var loc = f.neutralLocation ? 'Location TBD (staging area)' : f.city + ', ' + f.state + ', ' + f.country;
+  var statusColor = f.status === 'Active' ? '#22C55E' : '#6B7280';
+  var completeBg = st.completed ? 'rgba(5,150,105,.12)' : 'rgba(245,158,11,.08)';
+  var completeColor = st.completed ? '#4ADE80' : '#F59E0B';
+  var completeText = st.completed ? '✅ Complete' : '⏳ Open';
+
+  document.getElementById('fsTitle').textContent = f.name;
+  document.getElementById('fsSubtitle').innerHTML = f.company + (f.parent && f.parent !== f.company ? ' &middot; ' + f.parent : '');
+
+  var deleteBtn = f.custom ? '<button class="btn btn-delete" onclick="confirmDeleteFacility(\'' + fsCurrentId + '\');closeFsOverlay()">🗑 Delete</button>' : '';
+  var editBtn = f.custom ? '<button class="btn btn-edit" onclick="closeFsOverlay();editFacility(\'' + fsCurrentId + '\')">✏️ Edit</button>' : '';
+
+  document.getElementById('fsBody').innerHTML =
+    // Info grid
+    '<div class="fs-grid">' +
+      '<div class="fs-field"><div class="fs-label">Location</div><div class="fs-value">' + loc + '</div></div>' +
+      '<div class="fs-field"><div class="fs-label">Coordinates</div><div class="fs-value" style="font-family:JetBrains Mono,monospace;font-size:11px">' + f.lat.toFixed(4) + ', ' + f.lon.toFixed(4) + '</div></div>' +
+      '<div class="fs-field"><div class="fs-label">Value Chain</div><div class="fs-value">' + f.layer.charAt(0).toUpperCase() + f.layer.slice(1) + '</div></div>' +
+      '<div class="fs-field"><div class="fs-label">Type</div><div class="fs-value"><span class="dp-tag" style="background:' + f.color + '22;color:' + f.color + ';font-size:11px">' + f.type + '</span></div></div>' +
+      '<div class="fs-field"><div class="fs-label">Status</div><div class="fs-value"><span class="fs-status-badge" style="background:' + statusColor + '22;color:' + statusColor + '">' + f.status + '</span></div></div>' +
+      '<div class="fs-field"><div class="fs-label">Capacity</div><div class="fs-value">' + (f.capacity || '—') + '</div></div>' +
+    '</div>' +
+    '<div class="fs-grid two">' +
+      '<div class="fs-field"><div class="fs-label">Products</div><div class="fs-value">' + (f.products || '—') + '</div></div>' +
+      '<div class="fs-field"><div class="fs-label">Applications</div><div class="fs-value">' + (f.applications || '—') + '</div></div>' +
+    '</div>' +
+    '<div class="fs-grid">' +
+      '<div class="fs-field"><div class="fs-label">Action Status</div><div class="fs-value"><span class="fs-status-badge" style="background:' + completeBg + ';color:' + completeColor + '">' + completeText + '</span></div></div>' +
+    '</div>' +
+
+    // Contact section
+    '<hr class="fs-divider">' +
+    '<div class="fs-section-title">📇 Contact Information</div>' +
+    '<div class="fs-input-row">' +
+      '<div class="fs-input-field"><label>Contact Name</label><input class="fs-input" id="fsContact" placeholder="Contact name" value="' + esc(f.contact) + '"></div>' +
+      '<div class="fs-input-field"><label>Phone</label><input class="fs-input" id="fsPhone" placeholder="Phone" value="' + esc(f.phone) + '"></div>' +
+      '<div class="fs-input-field"><label>Email</label><input class="fs-input" id="fsEmail" placeholder="Email" value="' + esc(f.email) + '"></div>' +
+    '</div>' +
+
+    // Action plan section
+    '<hr class="fs-divider">' +
+    '<div class="fs-section-title">📋 Action Plan</div>' +
+    '<div class="fs-input-row two">' +
+      '<div class="fs-input-field"><label>Assigned Owner</label><input class="fs-input" id="fsOwner" placeholder="Who owns this action?" value="' + esc(st.owner || '') + '"></div>' +
+      '<div class="fs-input-field"><label>Status</label>' +
+        '<div style="display:flex;gap:8px;margin-top:2px">' +
+          '<button class="btn btn-complete' + (st.completed ? ' is-complete' : '') + '" id="fsBtnComplete" onclick="toggleFsComplete()" style="flex:1">' + (st.completed ? '↩ Reopen' : '✓ Mark Complete') + '</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="fs-input-field" style="margin-top:4px"><label>Notes, Action Items & Follow-ups</label>' +
+      '<textarea class="fs-input" id="fsNotes" placeholder="Enter detailed notes, next steps, follow-up actions...">' + esc(st.userNotes || f.notes || '') + '</textarea>' +
+    '</div>' +
+
+    // Actions
+    '<div class="fs-actions">' +
+      '<button class="btn btn-save" id="fsBtnSave" onclick="saveFsDetail()" style="flex:1">💾 Save All Changes</button>' +
+      '<button class="btn btn-flyto" onclick="map.flyTo([' + f.lat + ',' + f.lon + '],12,{duration:0.8})">📍 Fly To</button>' +
+      editBtn +
+      deleteBtn +
+    '</div>';
+
+  document.getElementById('fsOverlay').classList.add('open');
+}
+
+function closeFsOverlay() {
+  document.getElementById('fsOverlay').classList.remove('open');
+  fsCurrentId = null;
+}
+
+function saveFsDetail() {
+  if (!fsCurrentId) return;
+  if (!actionState[fsCurrentId]) actionState[fsCurrentId] = {};
+  actionState[fsCurrentId].owner = document.getElementById('fsOwner').value;
+  actionState[fsCurrentId].userNotes = document.getElementById('fsNotes').value;
+
+  var f = facilities.find(function(x) { return x.id === fsCurrentId; });
+  if (f) {
+    f.contact = document.getElementById('fsContact').value;
+    f.phone = document.getElementById('fsPhone').value;
+    f.email = document.getElementById('fsEmail').value;
+  }
+
+  saveToSupabase(fsCurrentId);
+
+  // Flash save
+  var btn = document.getElementById('fsBtnSave');
+  btn.textContent = '✓ Saved!';
+  btn.style.background = '#059669';
+  setTimeout(function() { btn.textContent = '💾 Save All Changes'; btn.style.background = ''; }, 1500);
+
+  // Sync back to sidebar if still selected
+  if (selectedId === fsCurrentId) {
+    var dpOwner = document.getElementById('dpOwner');
+    var dpNotes = document.getElementById('dpNotes');
+    var dpContact = document.getElementById('dpContact');
+    var dpPhone = document.getElementById('dpPhone');
+    var dpEmail = document.getElementById('dpEmail');
+    if (dpOwner) dpOwner.value = actionState[fsCurrentId].owner;
+    if (dpNotes) dpNotes.value = actionState[fsCurrentId].userNotes;
+    if (dpContact) dpContact.value = f.contact;
+    if (dpPhone) dpPhone.value = f.phone;
+    if (dpEmail) dpEmail.value = f.email;
+  }
+
+  if (markers[fsCurrentId]) markers[fsCurrentId].setTooltipContent(buildTooltip(f));
+  renderList();
+}
+
+function toggleFsComplete() {
+  if (!fsCurrentId) return;
+  if (!actionState[fsCurrentId]) actionState[fsCurrentId] = {};
+  actionState[fsCurrentId].completed = !actionState[fsCurrentId].completed;
+  // Also capture current field values
+  actionState[fsCurrentId].owner = document.getElementById('fsOwner').value;
+  actionState[fsCurrentId].userNotes = document.getElementById('fsNotes').value;
+
+  saveToSupabase(fsCurrentId);
+
+  var btn = document.getElementById('fsBtnComplete');
+  if (actionState[fsCurrentId].completed) {
+    btn.textContent = '↩ Reopen';
+    btn.classList.add('is-complete');
+  } else {
+    btn.textContent = '✓ Mark Complete';
+    btn.classList.remove('is-complete');
+  }
+
+  // Also update sidebar button if present
+  var sbBtn = document.getElementById('btnComplete');
+  if (sbBtn) {
+    if (actionState[fsCurrentId].completed) {
+      sbBtn.textContent = '↩ Reopen'; sbBtn.classList.add('is-complete');
+    } else {
+      sbBtn.textContent = '✓ Complete'; sbBtn.classList.remove('is-complete');
+    }
+  }
+
+  var f = facilities.find(function(x) { return x.id === fsCurrentId; });
+  if (f && markers[fsCurrentId]) markers[fsCurrentId].setTooltipContent(buildTooltip(f));
+  updateProgress();
+}
+
+// Close overlay with Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('fsOverlay').classList.contains('open')) {
+    closeFsOverlay();
+  }
+});
 
 // ===== ADD / EDIT SUPPLIER PANEL =====
 var editMode = null; // null = adding new, string = editing facility id
