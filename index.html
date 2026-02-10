@@ -144,6 +144,8 @@ textarea.dp-input { min-height: 48px; }
 .btn-flyto:hover { background: var(--bg-card-hover); color: var(--text-primary); }
 .btn-delete { background: var(--bg-card); color: var(--accent-red); border: 1px solid var(--accent-red); }
 .btn-delete:hover { background: var(--accent-red); color: #fff; }
+.btn-edit { background: var(--bg-card); color: var(--accent-cyan); border: 1px solid var(--accent-cyan); }
+.btn-edit:hover { background: var(--accent-cyan); color: #fff; }
 
 /* FILTER CHIPS BAR */
 .filter-bar { padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
@@ -1165,7 +1167,8 @@ function selectFacility(id) {
   var dp = document.getElementById('dpBody');
   var loc = f.neutralLocation ? '<span style="color:var(--accent-amber)">📍 Neutral staging area — no address set</span>' : f.city + ', ' + f.state + ', ' + f.country;
 
-  var deleteBtn = f.custom ? '<button class="btn btn-delete" onclick="confirmDeleteFacility(\'' + id + '\')">🗑 Delete</button>' : '';
+  var deleteBtn = f.custom ? '<button class="btn btn-delete" onclick="confirmDeleteFacility(\'' + id + '\')">🗑</button>' : '';
+  var editBtn = f.custom ? '<button class="btn btn-edit" onclick="editFacility(\'' + id + '\')">✏️ Edit</button>' : '';
 
   dp.innerHTML =
     (f.custom ? '<div style="background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.2);border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:10px;color:var(--accent-cyan)">★ Custom supplier — added by your team</div>' : '') +
@@ -1199,6 +1202,7 @@ function selectFacility(id) {
         '<button class="btn btn-complete' + (st.completed ? ' is-complete' : '') + '" id="btnComplete" onclick="toggleComplete(\'' + id + '\')">' + (st.completed ? '↩ Reopen' : '✓ Complete') + '</button>' +
         '<button class="btn btn-save" onclick="saveDetail(\'' + id + '\')">💾 Save</button>' +
         '<button class="btn btn-flyto" onclick="map.flyTo([' + f.lat + ',' + f.lon + '],12,{duration:0.8})">📍</button>' +
+        editBtn +
         deleteBtn +
       '</div>' +
     '</div>';
@@ -1282,12 +1286,17 @@ function closeDetail() {
   document.querySelectorAll('.facility-card').forEach(function(el) { el.classList.remove('selected'); });
 }
 
-// ===== ADD SUPPLIER PANEL =====
+// ===== ADD / EDIT SUPPLIER PANEL =====
+var editMode = null; // null = adding new, string = editing facility id
+
 function openAddPanel() {
   closeDetail();
+  editMode = null;
   document.getElementById('addPanel').classList.add('open');
   document.getElementById('listWrap').classList.add('hidden');
   document.getElementById('addError').textContent = '';
+  document.querySelector('.ap-title').textContent = '➕ Add New Supplier';
+  document.getElementById('addSubmitBtn').textContent = '➕ Add Supplier';
   // Reset form
   ['addName','addCompany','addParent','addCity','addState','addLat','addLon','addCapacity','addProducts','addApplications','addNotes'].forEach(function(id) {
     document.getElementById(id).value = '';
@@ -1298,9 +1307,54 @@ function openAddPanel() {
   updateTypeOptions();
 }
 
+function editFacility(id) {
+  var f = facilities.find(function(x) { return x.id === id; });
+  if (!f || !f.custom) return;
+
+  closeDetail();
+  editMode = id;
+  document.getElementById('addPanel').classList.add('open');
+  document.getElementById('listWrap').classList.add('hidden');
+  document.getElementById('addError').textContent = '';
+  document.querySelector('.ap-title').textContent = '✏️ Edit Supplier';
+  document.getElementById('addSubmitBtn').textContent = '💾 Save Changes';
+
+  // Pre-populate form with facility data
+  document.getElementById('addName').value = f.name;
+  document.getElementById('addCompany').value = f.company;
+  document.getElementById('addParent').value = f.parent || '';
+  document.getElementById('addCity').value = f.neutralLocation ? '' : f.city;
+  document.getElementById('addState').value = f.state || '';
+  document.getElementById('addCountry').value = f.country || 'USA';
+  document.getElementById('addLat').value = f.neutralLocation ? '' : f.lat;
+  document.getElementById('addLon').value = f.neutralLocation ? '' : f.lon;
+  document.getElementById('addStatus').value = f.status || 'Active';
+  document.getElementById('addCapacity').value = f.capacity || '';
+  document.getElementById('addProducts').value = f.products || '';
+  document.getElementById('addApplications').value = f.applications || '';
+  document.getElementById('addNotes').value = f.notes || '';
+
+  // Set layer first, then update type options, then set type
+  document.getElementById('addLayer').value = f.layer;
+  updateTypeOptions();
+  // Try to match existing type, add as custom option if not in list
+  var typeSelect = document.getElementById('addType');
+  var found = false;
+  for (var i = 0; i < typeSelect.options.length; i++) {
+    if (typeSelect.options[i].value === f.type) { typeSelect.value = f.type; found = true; break; }
+  }
+  if (!found && f.type) {
+    var opt = document.createElement('option');
+    opt.value = f.type; opt.textContent = f.type;
+    typeSelect.appendChild(opt);
+    typeSelect.value = f.type;
+  }
+}
+
 function closeAddPanel() {
   document.getElementById('addPanel').classList.remove('open');
   document.getElementById('listWrap').classList.remove('hidden');
+  editMode = null;
 }
 
 async function addSupplier() {
@@ -1335,12 +1389,77 @@ async function addSupplier() {
     return;
   }
 
-  // Generate unique ID
-  var slug = (company.substring(0,8) + '-' + name.substring(0,12)).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g,'-').replace(/^-|-$/g,'');
-  var id = 'custom-' + slug + '-' + Date.now().toString(36);
-
   var color = getColorForType(layer, type);
   var shape = getShapeForLayer(layer);
+
+  var btn = document.getElementById('addSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  // ===== EDIT MODE =====
+  if (editMode) {
+    var existingF = facilities.find(function(x) { return x.id === editMode; });
+    if (!existingF) { errEl.textContent = 'Facility not found.'; btn.disabled = false; btn.textContent = '💾 Save Changes'; return; }
+
+    // Determine coords: use new if provided, keep old if was positioned and none provided, or get neutral
+    var coords;
+    if (hasCoords) {
+      coords = { lat: lat, lon: lon };
+    } else if (!existingF.neutralLocation && !hasCoords) {
+      // Was positioned before, user cleared coords — move to neutral
+      coords = getNeutralCoords();
+    } else if (existingF.neutralLocation && !hasCoords) {
+      // Was neutral, still neutral — keep same spot
+      coords = { lat: existingF.lat, lon: existingF.lon };
+    } else {
+      coords = getNeutralCoords();
+    }
+
+    // Update facility object
+    existingF.name = name;
+    existingF.company = company;
+    existingF.parent = parent;
+    existingF.city = city || (hasCoords ? '' : 'TBD');
+    existingF.state = state;
+    existingF.country = country;
+    existingF.lat = coords.lat;
+    existingF.lon = coords.lon;
+    existingF.layer = layer;
+    existingF.type = type;
+    existingF.color = color;
+    existingF.shape = shape;
+    existingF.status = status;
+    existingF.capacity = capacity;
+    existingF.products = products;
+    existingF.applications = applications;
+    existingF.notes = notes;
+    existingF.neutralLocation = !hasCoords;
+
+    var ok = await saveCustomFacility(existingF);
+    if (!ok) {
+      errEl.textContent = 'Failed to save changes.';
+      btn.disabled = false;
+      btn.textContent = '💾 Save Changes';
+      return;
+    }
+
+    // Update map marker — remove old, add new
+    if (markers[editMode]) { map.removeLayer(markers[editMode]); delete markers[editMode]; }
+    addMarkerForFacility(existingF);
+
+    updateCounts();
+    renderList();
+    btn.disabled = false;
+    btn.textContent = '💾 Save Changes';
+    closeAddPanel();
+    selectFacility(editMode);
+    editMode = null;
+    return;
+  }
+
+  // ===== ADD MODE =====
+  var slug = (company.substring(0,8) + '-' + name.substring(0,12)).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+  var id = 'custom-' + slug + '-' + Date.now().toString(36);
 
   var coords = hasCoords ? { lat: lat, lon: lon } : getNeutralCoords();
 
@@ -1370,11 +1489,6 @@ async function addSupplier() {
     neutralLocation: !hasCoords
   };
 
-  // Disable button during save
-  var btn = document.getElementById('addSubmitBtn');
-  btn.disabled = true;
-  btn.textContent = 'Saving...';
-
   var ok = await saveCustomFacility(f);
   if (!ok) {
     errEl.textContent = 'Failed to save. Check console and ensure the custom_facilities table exists in Supabase.';
@@ -1383,7 +1497,6 @@ async function addSupplier() {
     return;
   }
 
-  // Add to local state
   facilities.push(f);
   addMarkerForFacility(f);
   updateCounts();
@@ -1392,7 +1505,6 @@ async function addSupplier() {
   btn.disabled = false;
   btn.textContent = '➕ Add Supplier';
 
-  // Close panel and select the new facility
   closeAddPanel();
   selectFacility(id);
 }
@@ -1486,4 +1598,3 @@ renderList();
 checkSession();
 </script>
 </body></html>
-
