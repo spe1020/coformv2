@@ -970,16 +970,19 @@ var typeConfig = [
   {key:'adultbaby', label:'Adult+Baby', color:'#8B5CF6', match: function(f){return f.type==='Adult+Baby';}},
   {key:'wipes', label:'Wipes', color:'#06B6D4', match: function(f){return f.type==='Wipes';}},
   {key:'full', label:'Full Portfolio', color:'#D946EF', match: function(f){return f.type==='Full Portfolio';}},
+  {key:'custom', label:'★ Custom', color:'#06B6D4', match: function(f){return !!f.custom;}},
 ];
 var typeVisible = {};
 
 function getConfigKey(f) {
   for (var i = 0; i < typeConfig.length; i++) {
-    if (typeConfig[i].match(f)) return typeConfig[i].key;
+    if (typeConfig[i].key !== 'custom' && typeConfig[i].match(f)) return typeConfig[i].key;
   }
   return null;
 }
 function isTypeVisible(f) {
+  // Custom facilities must pass the custom filter
+  if (f.custom && typeVisible['custom'] === false) return false;
   var k = getConfigKey(f);
   if (k === null) return true;
   return typeVisible[k] !== false;
@@ -1013,10 +1016,10 @@ function toggleType(key, chipEl, color) {
     chipEl.className = 'chip off';
     chipEl.style.background = 'transparent';
   }
-  var tc = typeConfig.find(function(t) { return t.key === key; });
+  // Update map markers — recheck visibility for all affected facilities
   facilities.forEach(function(f) {
-    if (tc && tc.match(f) && markers[f.id]) {
-      if (typeVisible[key]) {
+    if (markers[f.id]) {
+      if (isTypeVisible(f)) {
         if (!map.hasLayer(markers[f.id])) map.addLayer(markers[f.id]);
       } else {
         if (map.hasLayer(markers[f.id])) map.removeLayer(markers[f.id]);
