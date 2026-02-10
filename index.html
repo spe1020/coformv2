@@ -151,7 +151,9 @@ textarea.dp-input { min-height: 48px; }
 .filter-bar { padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .filter-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
 .filter-row:last-child { margin-bottom: 0; }
-.filter-row-label { font-size: 9px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 3px; font-weight: 600; }
+.filter-row-label { font-size: 9px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 3px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+.toggle-all-btn { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); font-size: 9px; font-weight: 600; padding: 2px 8px; border-radius: 4px; cursor: pointer; text-transform: uppercase; letter-spacing: .3px; transition: all .15s; }
+.toggle-all-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
 .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 12px; font-size: 10px; font-weight: 600; cursor: pointer; border: 1.5px solid; transition: all .15s; user-select: none; }
 .chip .cdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .chip.on { opacity: 1; }
@@ -341,7 +343,7 @@ textarea.fs-input { min-height: 120px; resize: vertical; line-height: 1.5; }
       <div class="tab" data-layer="hygiene" onclick="switchTab('hygiene',this)">Hygiene <span class="count" id="tabHygiene">0</span></div>
     </div>
     <div class="filter-bar" id="filterBar">
-      <div class="filter-row-label">Type Filters</div>
+      <div class="filter-row-label">Type Filters <button class="toggle-all-btn" id="toggleAllBtn" onclick="toggleAllFilters()">Hide All</button></div>
       <div class="filter-row" id="chipRow"></div>
     </div>
     <div class="toolbar-row">
@@ -1022,6 +1024,47 @@ function toggleType(key, chipEl, color) {
     }
   });
   renderList();
+  updateToggleAllBtn();
+}
+
+function toggleAllFilters() {
+  // Check if all are currently on
+  var allOn = typeConfig.every(function(tc) { return typeVisible[tc.key] !== false; });
+  var newState = !allOn;
+
+  typeConfig.forEach(function(tc) {
+    typeVisible[tc.key] = newState;
+    var chip = document.querySelector('.chip[data-type="' + tc.key + '"]');
+    if (chip) {
+      if (newState) {
+        chip.className = 'chip on';
+        chip.style.background = tc.color + '15';
+      } else {
+        chip.className = 'chip off';
+        chip.style.background = 'transparent';
+      }
+    }
+  });
+
+  // Update map markers
+  facilities.forEach(function(f) {
+    if (markers[f.id]) {
+      if (isTypeVisible(f)) {
+        if (!map.hasLayer(markers[f.id])) map.addLayer(markers[f.id]);
+      } else {
+        if (map.hasLayer(markers[f.id])) map.removeLayer(markers[f.id]);
+      }
+    }
+  });
+
+  renderList();
+  updateToggleAllBtn();
+}
+
+function updateToggleAllBtn() {
+  var allOn = typeConfig.every(function(tc) { return typeVisible[tc.key] !== false; });
+  var btn = document.getElementById('toggleAllBtn');
+  if (btn) btn.textContent = allOn ? 'Hide All' : 'Show All';
 }
 
 // ===== STATUS FILTER =====
